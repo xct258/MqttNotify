@@ -1,0 +1,10 @@
+# 说明：两个子项目各自带有 .gitignore（.NET / Gradle 各一套），
+# git 会按目录分层生效，这里只兜住仓库根目录的零碎文件。
+#
+# dist/ 是「刻意提交」的预编译产物（见 README），不要忽略它。
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak

@@ -1,0 +1,244 @@
+<Window x:Class="MqttNotify.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MQTT 提醒"
+        Height="680" Width="960" MinHeight="520" MinWidth="780"
+        WindowStartupLocation="CenterScreen"
+        Background="#F4F5F7"
+        FontFamily="Microsoft YaHei UI, Segoe UI"
+        FontSize="13">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ============================ 连接状态 ============================ -->
+        <Border Grid.Row="0" Margin="16,16,16,0" Padding="16,14"
+                Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Ellipse Width="12" Height="12" VerticalAlignment="Center"
+                         Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
+
+                <StackPanel Grid.Column="1" Margin="12,0,16,0">
+                    <TextBlock Text="{Binding StatusText}" FontSize="17" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusDetail}" Foreground="#616161"
+                               TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="启动接收" Command="{Binding StartCommand}" Padding="14,6" Margin="0,0,8,0" />
+                    <Button Content="停止接收" Command="{Binding StopCommand}" Padding="14,6" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.15*" MinWidth="380" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="1*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ============================ 设置 ============================ -->
+            <Border Grid.Column="0" Padding="16" Background="White"
+                    BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="6">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Text="连接设置" />
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" MinWidth="104" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- 传输方式 -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="传输方式" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" Margin="0,0,0,4"
+                                      ItemsSource="{Binding TransportOptions}"
+                                      SelectedItem="{Binding SelectedTransport}"
+                                      DisplayMemberPath="Display" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Hint}"
+                                       Text="{Binding TransportHint}" Margin="0,0,0,14" />
+
+                            <!-- Broker 地址 + 端口 -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Broker 地址" />
+                            <DockPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,10">
+                                <TextBlock DockPanel.Dock="Right" Style="{StaticResource FieldLabel}"
+                                           Text="端口" Margin="12,0,8,0" />
+                                <TextBox DockPanel.Dock="Right" Width="80"
+                                         Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" />
+                            </DockPanel>
+
+                            <!-- 连接地址预览 -->
+                            <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="连接地址" />
+                            <Border Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" Padding="8,5"
+                                    Background="#F7F9FA" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="3">
+                                <TextBlock Text="{Binding EndpointPreview}" FontFamily="Consolas, Microsoft YaHei UI"
+                                           TextWrapping="Wrap" Foreground="#37474F" />
+                            </Border>
+
+                            <!-- WebSocket 路径（仅 WS/WSS） -->
+                            <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource FieldLabel}"
+                                       Text="WS 路径"
+                                       Visibility="{Binding IsWebSocketTransport, Converter={StaticResource BoolToVisibility}}" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,10"
+                                        Visibility="{Binding IsWebSocketTransport, Converter={StaticResource BoolToVisibility}}">
+                                <TextBox Text="{Binding WsPath, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                           Text="Mosquitto 自身忽略路径；经 nginx / caddy 转发时按 location 匹配，默认 /mqtt。" />
+                            </StackPanel>
+
+                            <!-- 自签证书（仅 WSS） -->
+                            <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,0,0,14" Content="允许不安全 TLS（跳过证书链与主机名校验）"
+                                      IsChecked="{Binding AllowInsecureTls}"
+                                      Visibility="{Binding IsTlsTransport, Converter={StaticResource BoolToVisibility}}" />
+
+                            <!-- 订阅主题 -->
+                            <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="订阅主题 base" />
+                            <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,10">
+                                <TextBox Text="{Binding TopicBase, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0">
+                                    <Run Text="实际订阅：" />
+                                    <Run Text="{Binding SubscribeTopicPreview, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!-- 来源服务名 -->
+                            <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="来源服务名" />
+                            <TextBox Grid.Row="7" Grid.Column="1" Margin="0,0,0,10"
+                                     Text="{Binding ServerName, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <!-- Client ID -->
+                            <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Client ID" />
+                            <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,0,0,14">
+                                <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                           Text="留空则每次启动随机生成。两台机器填同一个 ID 会互相顶下线。" />
+                            </StackPanel>
+
+                            <!-- 开关 -->
+                            <StackPanel Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,14">
+                                <CheckBox Content="开机自动启动（当前用户，无需管理员权限）"
+                                          IsChecked="{Binding AutoStartOnBoot}" Margin="0,0,0,8" />
+                                <CheckBox Content="关闭窗口时收进托盘，而不是退出程序"
+                                          IsChecked="{Binding MinimizeToTrayOnClose}" />
+                            </StackPanel>
+
+                            <!-- 保存 -->
+                            <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal">
+                                <Button Content="保存并重连" Command="{Binding SaveCommand}" Padding="16,7"
+                                        FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding StatusMessage}" Foreground="#EF6C00"
+                                           VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <!-- ============================ 最近提醒 ============================ -->
+            <Border Grid.Column="2" Padding="16" Background="White"
+                    BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="6">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="最近提醒" Margin="0" />
+                        <Button Content="清空" HorizontalAlignment="Right" Padding="10,3"
+                                Command="{Binding ClearAlertsCommand}" />
+                    </Grid>
+
+                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8"
+                               Text="仅本次运行内保留，最多 100 条（不落盘）。">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasAlerts}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Grid>
+                        <ListBox ItemsSource="{Binding Alerts}"
+                                 BorderThickness="0" Background="Transparent"
+                                 HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="6,6" BorderBrush="#EEEEEE" BorderThickness="0,0,0,1">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontSize="11" Foreground="#9E9E9E"
+                                                           Text="{Binding ReceivedAt, StringFormat='{}{0:HH:mm:ss}'}" />
+                                                <TextBlock FontSize="11" Foreground="#9E9E9E" Margin="8,0,0,0"
+                                                           Text="{Binding TaskId, StringFormat='#{0}'}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                       TextWrapping="Wrap" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding Body}" TextWrapping="Wrap"
+                                                       Foreground="#455A64" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding Topic}" FontSize="10"
+                                                       Foreground="#BDBDBD" Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock Text="还没有收到提醒" Foreground="#BDBDBD"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasAlerts}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

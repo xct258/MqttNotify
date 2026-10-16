@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="MqttNotify.app" />
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!--
+        这里刻意不写 dpiAware / dpiAwareness：
+        .NET Core 3.0 起 WPF 默认按 Per-Monitor V2 处理 DPI，而 WinForms 分析器
+        (WFAC010) 不允许清单里出现 DPI 设置（它要求走 ApplicationHighDpiMode）。
+        两边的要求冲突，且本应用没有任何 WinForms 窗口（只用 NotifyIcon），
+        所以统一交给 WPF 的默认行为 + csproj 里的 ApplicationHighDpiMode。
+      -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+    </windowsSettings>
+  </application>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 / 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    平台无关的核心库：配置模型、下行解析、MQTT 连接服务。
+    刻意不引用任何 Windows/WPF 类型，因此可以在 Linux/macOS 上编译并跑单元测试。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>MqttNotify.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 4.x 末版：client 与 server 同包，便于在测试里起进程内 broker 做集成测试 -->
+    <PackageReference Include="MQTTnet" Version="4.3.7.1207" />
+  </ItemGroup>
+
+</Project>

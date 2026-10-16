@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- 托盘图标用 WinForms 的 NotifyIcon（WPF 自身没有托盘 API），这是最轻的做法 -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!--
+      允许在 Linux/macOS 上交叉编译 Windows 目标。
+      注意：这只影响「编译」，产物仍然只能在 Windows 上运行。
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>MqttNotify</AssemblyName>
+    <RootNamespace>MqttNotify.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- exe 图标（由 tools/icon-gen 生成） -->
+    <ApplicationIcon>Assets/MqttNotify.ico</ApplicationIcon>
+    <!-- WinForms 侧要求 DPI 走这里配置（见 app.manifest 里的说明）；WPF 侧保持框架默认的 Per-Monitor V2 -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!--
+      关掉隐式 using：同时启用 WPF 与 WinForms 时，两边都有 Application / MessageBox / Clipboard，
+      隐式 using 会让这些名字产生歧义，反而更麻烦。这里统一显式 using。
+    -->
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MqttNotify.Core\MqttNotify.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 托盘 NotifyIcon 也要读同一个图标文件，所以一并拷到输出目录 -->
+    <None Update="Assets/MqttNotify.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

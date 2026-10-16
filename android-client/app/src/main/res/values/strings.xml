@@ -1,0 +1,44 @@
+<resources>
+    <string name="app_name">MQTT 提醒</string>
+
+    <!-- 通知渠道 -->
+    <string name="channel_service_name">连接状态</string>
+    <string name="channel_service_desc">保持 MQTT 常驻连接的常驻通知</string>
+    <string name="channel_alerts_name">待办提醒</string>
+    <string name="channel_alerts_desc">收到待办提醒时弹出通知</string>
+
+    <!-- 连接状态 -->
+    <string name="status_stopped">已停止</string>
+    <string name="status_connecting">正在连接</string>
+    <string name="status_connected">已连接</string>
+    <string name="status_reconnecting">重连中</string>
+    <string name="status_failed">连接失败</string>
+
+    <!-- 默认提醒标题（payload 无【待办提醒】前缀时使用） -->
+    <string name="default_alert_title">新提醒</string>
+
+    <!-- 主界面 -->
+    <string name="ui_status_title">连接状态</string>
+    <string name="ui_start">启动接收</string>
+    <string name="ui_stop">停止接收</string>
+    <string name="ui_settings_title">连接设置</string>
+    <string name="ui_transport">传输方式</string>
+    <string name="ui_host">Broker 地址</string>
+    <string name="ui_host_hint">例如 192.168.1.10</string>
+    <string name="ui_port">端口</string>
+    <string name="ui_ws_path">WebSocket 路径</string>
+    <string name="ui_ws_path_hint">默认 /mqtt</string>
+    <string name="ui_allow_insecure_tls">允许自签证书（跳过 TLS 校验）</string>
+    <string name="ui_insecure_tls_warning">仅用于内网自签名证书；会跳过证书链校验，请勿在公网开启</string>
+    <string name="ui_topic">订阅主题（base）</string>
+    <string name="ui_topic_hint">例如 taskops/todo</string>
+    <string name="ui_server_name">服务器名称</string>
+    <string name="ui_server_name_hint">例如 taskops</string>
+    <string name="ui_client_id">Client ID（留空自动生成）</string>
+    <string name="ui_client_id_hint">留空则以 android-xxxx 自动生成</string>
+    <string name="ui_auto_start">开机自动启动</string>
+    <string name="ui_save">保存</string>
+    <string name="ui_saved">设置已保存</string>
+    <string name="ui_recent">最近提醒（仅本次运行，不落盘）</string>
+    <string name="ui_no_alerts">暂无提醒</string>
+</resources>
