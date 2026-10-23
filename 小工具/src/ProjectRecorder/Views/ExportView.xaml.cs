@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,7 +10,8 @@ using ProjectRecorder.Services;
 namespace ProjectRecorder.Views;
 
 /// <summary>
-/// 通用模块「导出」页：默认导出本班次，也可选历史日期导出当天合计（xlsx）。
+/// 通用模块「导出」页：默认导出本班次，也可选历史日期或日期范围批量导出（xlsx）。
+/// 工序顺序与工作量界面一致；表格带样式、冻结表头和筛选。
 /// </summary>
 public partial class ExportView : UserControl
 {
@@ -30,15 +32,21 @@ public partial class ExportView : UserControl
         _monitor = monitor;
     }
 
-    /// <summary>进入导出页：重置为“今日（本班次）”。</summary>
+    /// <summary>进入导出页：重置为“今日（本班次）”，批量范围默认最近 7 天。</summary>
     public void Reset()
     {
         _exportToday = true;
         _exportDate = WorkloadRecord.GetShiftDate(DateTime.Now);
         RefreshDateButton();
+
+        DateTime today = WorkloadRecord.GetShiftDate(DateTime.Now);
+        BatchStart.DisplayDateEnd = today;
+        BatchEnd.DisplayDateEnd = today;
+        if (!BatchStart.SelectedDate.HasValue) BatchStart.SelectedDate = today.AddDays(-6);
+        if (!BatchEnd.SelectedDate.HasValue) BatchEnd.SelectedDate = today;
     }
 
-    // 通用「导出」入口：默认导出本班次；选日期后导出该日期全天合计（xlsx，冻结标题行）
+    // 通用「导出」入口：默认导出本班次；选日期后导出该日期全天合计（xlsx）
     private void BtnExport_Click(object sender, RoutedEventArgs e)
     {
         _monitor?.NotifyActivity();
@@ -88,7 +96,9 @@ public partial class ExportView : UserControl
 
         try
         {
-            int rowCount = ExcelExporter.ExportWorkload(fileDlg.FileName, day, list, shift);
+            var (processes, projectOrder) = LoadOrderContext();
+            int rowCount = ExcelExporter.ExportWorkload(
+                fileDlg.FileName, day, list, shift, processes, projectOrder);
             MessageBox.Show($"导出成功，共 {rowCount} 项合计：\n{fileDlg.FileName}", "导出",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -96,6 +106,106 @@ public partial class ExportView : UserControl
         {
             MessageBox.Show($"导出失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    // 批量导出：日期范围内所有记录合成一个工作簿（汇总 / 每日汇总 / 明细）
+    private void BtnBatchExport_Click(object sender, RoutedEventArgs e)
+    {
+        _monitor?.NotifyActivity();
+        if (_data == null) return;
+
+        if (!BatchStart.SelectedDate.HasValue || !BatchEnd.SelectedDate.HasValue)
+        {
+            MessageBox.Show("请选择开始日期和结束日期。", "批量导出",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        DateTime start = BatchStart.SelectedDate.Value.Date;
+        DateTime end = BatchEnd.SelectedDate.Value.Date;
+        if (start > end)
+        {
+            MessageBox.Show("开始日期不能晚于结束日期。", "批量导出",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        DateTime today = WorkloadRecord.GetShiftDate(DateTime.Now);
+        if (end > today) end = today;
+        if (start > today)
+        {
+            MessageBox.Show("开始日期不能晚于今天。", "批量导出",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if ((end - start).TotalDays > 366)
+        {
+            MessageBox.Show("单次批量导出最多支持 366 天，请缩小日期范围。", "批量导出",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        string? shift = BatchShift.SelectedIndex switch
+        {
+            1 => WorkloadRecord.DayShift,
+            2 => WorkloadRecord.NightShift,
+            _ => null
+        };
+
+        var all = _data.LoadWorkload();
+        if (all == null) return;
+        var list = all
+            .Where(x => x.WorkDate.Date >= start && x.WorkDate.Date <= end)
+            .Where(x => shift == null || x.Shift == shift)
+            .ToList();
+
+        if (list.Count == 0)
+        {
+            string range = start == end ? $"{start:yyyy-MM-dd}" : $"{start:yyyy-MM-dd} ~ {end:yyyy-MM-dd}";
+            MessageBox.Show($"{range}{(shift == null ? "" : " " + shift)} 暂无工作量记录。", "批量导出",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        string shiftSuffix = shift == null ? string.Empty : $"_{shift}";
+        var fileDlg = new SaveFileDialog
+        {
+            Title = "批量导出工作量",
+            Filter = "Excel 文件|*.xlsx",
+            FileName = $"工作量_{start:yyyy-MM-dd}_{end:yyyy-MM-dd}{shiftSuffix}.xlsx"
+        };
+        var owner = Window.GetWindow(this);
+        bool? picked = owner == null ? fileDlg.ShowDialog() : fileDlg.ShowDialog(owner);
+        if (picked != true) return;
+
+        try
+        {
+            var (processes, projectOrder) = LoadOrderContext();
+            int rowCount = ExcelExporter.ExportWorkloadBatch(
+                fileDlg.FileName, start, end, shift, list, processes, projectOrder);
+            MessageBox.Show(
+                $"导出成功：{rowCount} 条工序合计，{list.Count} 条明细。\n{fileDlg.FileName}",
+                "批量导出", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"导出失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>项目按左侧列表顺序（通用固定第一），工序按工作量页 Order → CreatedTime。</summary>
+    private (List<WorkloadProcess> Processes, List<string> ProjectOrder) LoadOrderContext()
+    {
+        var processes = _data?.LoadWorkloadProcesses() ?? new List<WorkloadProcess>();
+        var projects = _data?.LoadProjects() ?? new List<string>();
+
+        var projectOrder = new List<string> { DataStore.FixedMachineProject };
+        foreach (string p in projects)
+        {
+            if (string.Equals(p, DataStore.FixedMachineProject, StringComparison.Ordinal)) continue;
+            projectOrder.Add(p);
+        }
+        return (processes, projectOrder);
     }
 
     // 导出页：默认“今日”（本班次日期），上限封顶到班次今日，不能选未来

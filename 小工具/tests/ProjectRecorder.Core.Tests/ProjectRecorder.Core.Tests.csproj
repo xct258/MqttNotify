@@ -23,6 +23,8 @@
     <Compile Include="../../src/ProjectRecorder/Models/WorkloadProcess.cs" Link="Models/WorkloadProcess.cs" />
     <Compile Include="../../src/ProjectRecorder/Services/WorkloadService.cs" Link="Services/WorkloadService.cs" />
     <Compile Include="../../src/ProjectRecorder/Services/ShiftService.cs" Link="Services/ShiftService.cs" />
+    <Compile Include="../../src/ProjectRecorder/Services/WorkloadExportBuilder.cs" Link="Services/WorkloadExportBuilder.cs" />
+    <Compile Include="../../src/ProjectRecorder/Services/ExcelExporter.cs" Link="Services/ExcelExporter.cs" />
   </ItemGroup>
 
 </Project>
