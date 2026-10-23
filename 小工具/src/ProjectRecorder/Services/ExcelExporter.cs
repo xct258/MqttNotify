@@ -10,28 +10,27 @@ using ProjectRecorder.Models;
 namespace ProjectRecorder.Services;
 
 /// <summary>
-/// 极简 xlsx 导出（无第三方依赖）：汇总 / 每日汇总 / 明细。
-/// 工序顺序与工作量界面一致（项目按左侧顺序，工序按 Order → CreatedTime）；
-/// 表格带标题、表头填色、斑马纹、边框、冻结表头、筛选和打印适配。
+/// 极简 xlsx 导出（无第三方依赖）：一个工作表 = 一天的「汇总 + 明细」。
+/// 批量导出时一个文件内按日期生成多个工作表；工序顺序与工作量界面一致
+/// （项目按左侧顺序，工序按 Order → CreatedTime）。
+/// 表格带标题、分节标题、表头填色、斑马纹、边框、筛选和打印适配。
 /// xlsx 本质是 zip 包，这里用 inline 字符串直写，避免 sharedStrings 表。
 /// </summary>
 public static class ExcelExporter
 {
-    private sealed class SheetData
+    private sealed class SheetXml
     {
         public string Name = string.Empty;
-        public string Title = string.Empty;
-        public string[] Headers = Array.Empty<string>();
-        public List<string[]> Rows { get; } = new();
-        public List<bool> RowShaded { get; } = new();
-        public bool[] Numeric = Array.Empty<bool>();
-        public double[] Caps = Array.Empty<double>();
-        public List<string> Merges { get; } = new();
-        public int TotalRowIndex = -1;
         public string TabColor = "FF2563EB";
+        public string Xml = string.Empty;
     }
 
-    // ---------- 单日导出（默认本班次或指定日期） ----------
+    private static readonly string[] TabColors =
+    {
+        "FF2563EB", "FF0EA5E9", "FF10B981", "FFF59E0B", "FF8B5CF6", "FFEF4444"
+    };
+
+    // ---------- 单日导出：一个工作表（当日汇总 + 明细） ----------
 
     public static int ExportWorkload(
         string path,
@@ -42,22 +41,17 @@ public static class ExcelExporter
         IReadOnlyList<string>? projectOrder = null)
     {
         var processList = processes ?? Array.Empty<WorkloadProcess>();
-        var summary = WorkloadExportBuilder.BuildSummary(records, processList, projectOrder);
-        var details = WorkloadExportBuilder.OrderDetails(records, processList, projectOrder);
+        var list = records
+            .Where(x => x.WorkDate.Date == day.Date)
+            .Where(x => shift == null || x.Shift == shift)
+            .ToList();
 
-        string title = shift == null
-            ? $"工作量统计（{day:yyyy-MM-dd}）"
-            : $"工作量统计（{day:yyyy-MM-dd} {shift}）";
-
-        WriteWorkbook(path, new[]
-        {
-            BuildSummarySheet(title, summary),
-            BuildDetailSheet(title, details)
-        });
-        return summary.Count;
+        var sheet = BuildDaySheet(day, shift, list, processList, projectOrder);
+        WriteWorkbook(path, new[] { sheet });
+        return WorkloadExportBuilder.BuildSummary(list, processList, projectOrder).Count;
     }
 
-    // ---------- 批量导出（日期范围，生成 汇总 / 每日汇总 / 明细） ----------
+    // ---------- 批量导出：一个文件，每天一个工作表 ----------
 
     public static int ExportWorkloadBatch(
         string path,
@@ -78,40 +72,86 @@ public static class ExcelExporter
             .ToList();
 
         var processList = processes ?? Array.Empty<WorkloadProcess>();
-        var summary = WorkloadExportBuilder.BuildSummary(filtered, processList, projectOrder);
-        var daily = WorkloadExportBuilder.BuildDaily(filtered, processList, projectOrder);
-        var details = WorkloadExportBuilder.OrderDetails(filtered, processList, projectOrder);
-
-        string range = from == to ? $"{from:yyyy-MM-dd}" : $"{from:yyyy-MM-dd} ~ {to:yyyy-MM-dd}";
-        if (!string.IsNullOrEmpty(shift)) range += $" {shift}";
-        string title = $"工作量统计（{range}）";
-
-        WriteWorkbook(path, new[]
+        var sheets = new List<SheetXml>();
+        foreach (var group in filtered.GroupBy(x => x.WorkDate.Date).OrderBy(g => g.Key))
         {
-            BuildSummarySheet(title, summary),
-            BuildDailySheet(title, daily),
-            BuildDetailSheet(title, details)
-        });
-        return summary.Count;
+            var sheet = BuildDaySheet(group.Key, shift, group.ToList(), processList, projectOrder);
+            sheet.TabColor = TabColors[sheets.Count % TabColors.Length];
+            sheets.Add(sheet);
+        }
+
+        if (sheets.Count == 0)
+            throw new InvalidOperationException("没有可导出的工作量记录。");
+
+        WriteWorkbook(path, sheets);
+        return WorkloadExportBuilder.BuildSummary(filtered, processList, projectOrder).Count;
     }
 
-    // ---------- 三张表的行数据 ----------
+    // ---------- 单个“日工作表” ----------
 
-    private static SheetData BuildSummarySheet(string title, List<WorkloadSummaryRow> summary)
+    private static SheetXml BuildDaySheet(
+        DateTime day,
+        string? shift,
+        List<WorkloadRecord> records,
+        IReadOnlyList<WorkloadProcess> processes,
+        IReadOnlyList<string>? projectOrder)
     {
-        var sheet = new SheetData
+        var summary = WorkloadExportBuilder.BuildSummary(records, processes, projectOrder);
+        var details = WorkloadExportBuilder.OrderDetails(records, processes, projectOrder);
+
+        string title = $"工作量统计（{day:yyyy-MM-dd}{(string.IsNullOrEmpty(shift) ? "" : " " + shift)}）";
+        return new SheetXml
         {
-            Name = "汇总",
-            Title = title,
-            Headers = new[] { "项目", "工序", "数量" },
-            Numeric = new[] { false, false, true },
-            Caps = new[] { 50d, 50d, 12d },
-            TabColor = "FF2563EB"
+            Name = day.ToString("yyyy-MM-dd"),
+            Xml = BuildDaySheetXml(title, summary, details)
+        };
+    }
+
+    private static string BuildDaySheetXml(
+        string title,
+        List<WorkloadSummaryRow> summary,
+        List<WorkloadRecord> details)
+    {
+        double[] widths = CalcDayWidths(title, summary, details);
+        var merges = new List<string>
+        {
+            "A1:E1", // 标题
+            "A2:E2"  // 一、汇总
         };
 
-        // 同一项目只写一次项目名，并纵向合并；斑马纹按项目分组交替，合并单元格颜色才一致
-        bool shade = false;
+        var sb = new StringBuilder();
+        sb.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        sb.Append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">");
+        sb.Append("<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>");
+        int row = 1;
+
+        // 标题
+        sb.Append($"<row r=\"{row}\" ht=\"30\" customHeight=\"1\">");
+        sb.Append(TextCell("A1", title, 1));
+        sb.Append("</row>");
+        row++;
+
+        // 一、汇总
+        sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
+        sb.Append(TextCell($"A{row}", "一、汇总", 9));
+        sb.Append(TextCell($"B{row}", string.Empty, 9));
+        sb.Append(TextCell($"C{row}", string.Empty, 9));
+        sb.Append(TextCell($"D{row}", string.Empty, 9));
+        sb.Append(TextCell($"E{row}", string.Empty, 9));
+        sb.Append("</row>");
+        row++;
+
+        // 汇总表头
+        sb.Append($"<row r=\"{row}\" ht=\"22\" customHeight=\"1\">");
+        sb.Append(TextCell($"A{row}", "项目", 2));
+        sb.Append(TextCell($"B{row}", "工序", 2));
+        sb.Append(TextCell($"C{row}", "数量", 2));
+        sb.Append("</row>");
+        row++;
+
+        // 汇总数据：同一项目纵向合并，斑马纹按项目分组交替
         int i = 0;
+        bool shade = false;
         while (i < summary.Count)
         {
             int j = i;
@@ -119,165 +159,80 @@ public static class ExcelExporter
                    string.Equals(summary[j + 1].ProjectName, summary[i].ProjectName, StringComparison.Ordinal))
                 j++;
 
+            int groupStart = row;
             for (int k = i; k <= j; k++)
             {
-                sheet.Rows.Add(new[]
-                {
-                    k == i ? summary[k].ProjectName : string.Empty,
-                    summary[k].ProcessName,
-                    summary[k].Quantity.ToString(CultureInfo.InvariantCulture)
-                });
-                sheet.RowShaded.Add(shade);
+                sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
+                sb.Append(TextCell($"A{row}", k == i ? summary[k].ProjectName : string.Empty, shade ? 5 : 3));
+                sb.Append(TextCell($"B{row}", summary[k].ProcessName, shade ? 5 : 3));
+                sb.Append(NumCell($"C{row}", summary[k].Quantity, shade ? 6 : 4));
+                sb.Append("</row>");
+                row++;
             }
-            if (j > i) sheet.Merges.Add($"A{i + 3}:A{j + 3}");
+            if (j > i) merges.Add($"A{groupStart}:A{row - 1}");
 
             i = j + 1;
             shade = !shade;
         }
 
+        // 汇总合计
         int total = summary.Sum(x => x.Quantity);
-        sheet.Rows.Add(new[] { "合计", string.Empty, total.ToString(CultureInfo.InvariantCulture) });
-        sheet.RowShaded.Add(false);
-        sheet.TotalRowIndex = sheet.Rows.Count - 1;
-        sheet.Merges.Add($"A{sheet.TotalRowIndex + 3}:B{sheet.TotalRowIndex + 3}");
-        return sheet;
-    }
-
-    private static SheetData BuildDailySheet(string title, List<WorkloadDailyRow> daily)
-    {
-        var sheet = new SheetData
-        {
-            Name = "每日汇总",
-            Title = title + "（每日汇总）",
-            Headers = new[] { "日期", "班次", "项目", "工序", "数量" },
-            Numeric = new[] { false, false, false, false, true },
-            Caps = new[] { 14d, 10d, 50d, 50d, 12d },
-            TabColor = "FF0EA5E9"
-        };
-
-        int row = 0;
-        foreach (var d in daily)
-        {
-            sheet.Rows.Add(new[]
-            {
-                d.WorkDate.ToString("yyyy-MM-dd"),
-                d.Shift,
-                d.ProjectName,
-                d.ProcessName,
-                d.Quantity.ToString(CultureInfo.InvariantCulture)
-            });
-            sheet.RowShaded.Add(row++ % 2 == 1);
-        }
-
-        int total = daily.Sum(x => x.Quantity);
-        sheet.Rows.Add(new[] { "合计", string.Empty, string.Empty, string.Empty, total.ToString(CultureInfo.InvariantCulture) });
-        sheet.RowShaded.Add(false);
-        sheet.TotalRowIndex = sheet.Rows.Count - 1;
-        sheet.Merges.Add($"A{sheet.TotalRowIndex + 3}:D{sheet.TotalRowIndex + 3}");
-        return sheet;
-    }
-
-    private static SheetData BuildDetailSheet(string title, List<WorkloadRecord> details)
-    {
-        var sheet = new SheetData
-        {
-            Name = "明细",
-            Title = title + "（执行明细）",
-            Headers = new[] { "项目", "工序", "日期", "班次", "数量", "执行时间" },
-            Numeric = new[] { false, false, false, false, true, false },
-            Caps = new[] { 50d, 50d, 14d, 10d, 12d, 22d },
-            TabColor = "FF10B981"
-        };
-
-        int row = 0;
-        foreach (var d in details)
-        {
-            sheet.Rows.Add(new[]
-            {
-                d.ProjectName ?? string.Empty,
-                d.ProcessName ?? string.Empty,
-                d.WorkDate.ToString("yyyy-MM-dd"),
-                d.Shift ?? string.Empty,
-                d.Quantity.ToString(CultureInfo.InvariantCulture),
-                d.IsBackfill ? "补录" : d.CreatedTime.ToString("yyyy-MM-dd HH:mm:ss")
-            });
-            sheet.RowShaded.Add(row++ % 2 == 1);
-        }
-        return sheet;
-    }
-
-    // ---------- 工作表 XML ----------
-
-    private static string BuildSheetXml(SheetData sheet)
-    {
-        int cols = sheet.Headers.Length;
-        string lastCol = ColumnLetter(cols);
-        int lastRow = sheet.Rows.Count + 2;
-
-        double[] widths = CalcWidths(sheet);
-
-        var sb = new StringBuilder();
-        sb.Append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-        sb.Append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">");
-        sb.Append($"<sheetPr><tabColor rgb=\"{sheet.TabColor}\"/><pageSetUpPr fitToPage=\"1\"/></sheetPr>");
-        sb.Append($"<dimension ref=\"A1:{lastCol}{lastRow}\"/>");
-        sb.Append("<sheetViews><sheetView workbookViewId=\"0\">");
-        sb.Append("<pane ySplit=\"2\" topLeftCell=\"A3\" activePane=\"bottomLeft\" state=\"frozen\"/>");
-        sb.Append("</sheetView></sheetViews>");
-        sb.Append("<sheetFormatPr defaultRowHeight=\"18\"/>");
-
-        sb.Append("<cols>");
-        for (int c = 0; c < cols; c++)
-            sb.Append($"<col min=\"{c + 1}\" max=\"{c + 1}\" width=\"{widths[c].ToString("0.#", CultureInfo.InvariantCulture)}\" customWidth=\"1\"/>");
-        sb.Append("</cols>");
-
-        sb.Append("<sheetData>");
-        // 标题
-        sb.Append("<row r=\"1\" ht=\"28\" customHeight=\"1\">");
-        sb.Append(TextCell("A1", sheet.Title, 1));
+        sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
+        sb.Append(TextCell($"A{row}", "合计", 7));
+        sb.Append(TextCell($"B{row}", string.Empty, 7));
+        sb.Append(NumCell($"C{row}", total, 8));
         sb.Append("</row>");
+        merges.Add($"A{row}:B{row}");
+        row++;
 
-        // 表头
-        sb.Append("<row r=\"2\" ht=\"22\" customHeight=\"1\">");
-        for (int c = 0; c < cols; c++)
-            sb.Append(TextCell($"{ColumnLetter(c + 1)}2", sheet.Headers[c], 2));
+        // 间隔行
+        sb.Append($"<row r=\"{row}\" ht=\"10\"/>");
+        row++;
+
+        // 二、明细
+        sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
+        sb.Append(TextCell($"A{row}", "二、明细（每次执行）", 9));
+        sb.Append(TextCell($"B{row}", string.Empty, 9));
+        sb.Append(TextCell($"C{row}", string.Empty, 9));
+        sb.Append(TextCell($"D{row}", string.Empty, 9));
+        sb.Append(TextCell($"E{row}", string.Empty, 9));
         sb.Append("</row>");
+        merges.Add($"A{row}:E{row}");
+        row++;
 
-        // 数据行
-        for (int i = 0; i < sheet.Rows.Count; i++)
+        // 明细表头
+        int detailHeaderRow = row;
+        sb.Append($"<row r=\"{row}\" ht=\"22\" customHeight=\"1\">");
+        sb.Append(TextCell($"A{row}", "项目", 2));
+        sb.Append(TextCell($"B{row}", "工序", 2));
+        sb.Append(TextCell($"C{row}", "班次", 2));
+        sb.Append(TextCell($"D{row}", "数量", 2));
+        sb.Append(TextCell($"E{row}", "执行时间", 2));
+        sb.Append("</row>");
+        row++;
+
+        // 明细数据
+        for (int k = 0; k < details.Count; k++)
         {
-            int r = i + 3;
-            bool isTotal = i == sheet.TotalRowIndex;
-            bool shaded = !isTotal && i < sheet.RowShaded.Count && sheet.RowShaded[i];
-            sb.Append($"<row r=\"{r}\" ht=\"20\" customHeight=\"1\">");
-
-            for (int c = 0; c < cols; c++)
-            {
-                string cellRef = $"{ColumnLetter(c + 1)}{r}";
-                string value = c < sheet.Rows[i].Length ? sheet.Rows[i][c] : string.Empty;
-
-                if (sheet.Numeric[c])
-                {
-                    int style = isTotal ? 8 : shaded ? 6 : 4;
-                    sb.Append($"<c r=\"{cellRef}\" s=\"{style}\"><v>{value}</v></c>");
-                }
-                else
-                {
-                    int style = isTotal ? 7 : shaded ? 5 : 3;
-                    sb.Append(TextCell(cellRef, value, style));
-                }
-            }
+            var d = details[k];
+            bool shaded = k % 2 == 1;
+            sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
+            sb.Append(TextCell($"A{row}", d.ProjectName ?? string.Empty, shaded ? 5 : 3));
+            sb.Append(TextCell($"B{row}", d.ProcessName ?? string.Empty, shaded ? 5 : 3));
+            sb.Append(TextCell($"C{row}", d.Shift ?? string.Empty, shaded ? 5 : 3));
+            sb.Append(NumCell($"D{row}", d.Quantity, shaded ? 6 : 4));
+            sb.Append(TextCell($"E{row}", d.IsBackfill ? "补录" : d.CreatedTime.ToString("yyyy-MM-dd HH:mm:ss"), shaded ? 5 : 3));
             sb.Append("</row>");
+            row++;
         }
+        int lastRow = row - 1;
+
         sb.Append("</sheetData>");
 
-        // 筛选（不含合计行）
-        int filterRows = sheet.Rows.Count - (sheet.TotalRowIndex >= 0 ? 1 : 0);
-        if (filterRows > 0)
-            sb.Append($"<autoFilter ref=\"A2:{lastCol}{filterRows + 2}\"/>");
+        // 明细表筛选
+        if (details.Count > 0)
+            sb.Append($"<autoFilter ref=\"A{detailHeaderRow}:E{lastRow}\"/>");
 
-        var merges = new List<string> { $"A1:{lastCol}1" };
-        merges.AddRange(sheet.Merges);
         if (merges.Count > 0)
         {
             sb.Append($"<mergeCells count=\"{merges.Count}\">");
@@ -287,38 +242,87 @@ public static class ExcelExporter
 
         sb.Append("<pageMargins left=\"0.4\" right=\"0.4\" top=\"0.6\" bottom=\"0.6\" header=\"0.3\" footer=\"0.3\"/>");
         sb.Append("<pageSetup paperSize=\"9\" orientation=\"landscape\" fitToWidth=\"1\" fitToHeight=\"0\"/>");
+
+        // 项目/工序可能是纯数字名称：保留文本原样（不丢前导 0），同时抑制 Excel 的“数字以文本形式存储”提示
+        if (details.Count > 0 || summary.Count > 0)
+            sb.Append($"<ignoredErrors><ignoredError sqref=\"A4:E{lastRow}\" numberStoredAsText=\"1\"/></ignoredErrors>");
+
         sb.Append("</worksheet>");
-        return sb.ToString();
+        return BuildSheetWrapper(sb.ToString(), lastRow, widths);
     }
 
-    private static double[] CalcWidths(SheetData sheet)
+    // 把 sheetData 前后补齐（列宽依赖内容，必须在拼完数据后计算）
+    private static string BuildSheetWrapper(string body, int lastRow, double[] widths)
     {
-        int cols = sheet.Headers.Length;
-        double[] w = new double[cols];
-        for (int c = 0; c < cols; c++)
-            w[c] = DisplayWidth(sheet.Headers[c]);
+        // body 以 XML 声明开头，插入 dimension/sheetViews/cols 到 sheetPr 之后
+        const string marker = "<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>";
+        int idx = body.IndexOf(marker, StringComparison.Ordinal);
+        if (idx < 0) return body;
+        idx += marker.Length;
 
-        foreach (var row in sheet.Rows)
-            for (int c = 0; c < cols && c < row.Length; c++)
-                w[c] = Math.Max(w[c], DisplayWidth(row[c]));
+        var prefix = new StringBuilder();
+        prefix.Append($"<dimension ref=\"A1:E{lastRow}\"/>");
+        prefix.Append("<sheetViews><sheetView workbookViewId=\"0\">");
+        prefix.Append("<pane ySplit=\"1\" topLeftCell=\"A2\" activePane=\"bottomLeft\" state=\"frozen\"/>");
+        prefix.Append("</sheetView></sheetViews>");
+        prefix.Append("<sheetFormatPr defaultRowHeight=\"18\"/>");
+        prefix.Append("<cols>");
+        for (int c = 0; c < widths.Length; c++)
+            prefix.Append($"<col min=\"{c + 1}\" max=\"{c + 1}\" width=\"{widths[c].ToString("0.#", CultureInfo.InvariantCulture)}\" customWidth=\"1\"/>");
+        prefix.Append("</cols>");
+        prefix.Append("<sheetData>");
 
-        for (int c = 0; c < cols; c++)
-            w[c] = Math.Min(w[c] + 2, sheet.Caps[c]);
+        return body.Insert(idx, prefix.ToString());
+    }
 
-        // 标题合并后总宽不足会被 Excel 截断：把缺口均摊到各列
-        double titleWidth = DisplayWidth(sheet.Title) + 2;
+    private static double[] CalcDayWidths(
+        string title,
+        List<WorkloadSummaryRow> summary,
+        List<WorkloadRecord> details)
+    {
+        double[] w =
+        {
+            DisplayWidth("项目"),
+            DisplayWidth("工序"),
+            Math.Max(DisplayWidth("数量"), DisplayWidth("班次")),
+            DisplayWidth("数量"),
+            DisplayWidth("执行时间")
+        };
+
+        foreach (var s in summary)
+        {
+            w[0] = Math.Max(w[0], DisplayWidth(s.ProjectName));
+            w[1] = Math.Max(w[1], DisplayWidth(s.ProcessName));
+            w[2] = Math.Max(w[2], DisplayWidth(s.Quantity.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        foreach (var d in details)
+        {
+            w[0] = Math.Max(w[0], DisplayWidth(d.ProjectName));
+            w[1] = Math.Max(w[1], DisplayWidth(d.ProcessName));
+            w[2] = Math.Max(w[2], DisplayWidth(d.Shift));
+            w[3] = Math.Max(w[3], DisplayWidth(d.Quantity.ToString(CultureInfo.InvariantCulture)));
+            w[4] = Math.Max(w[4], DisplayWidth(d.IsBackfill ? "补录" : d.CreatedTime.ToString("yyyy-MM-dd HH:mm:ss")));
+        }
+
+        double[] caps = { 80, 80, 12, 12, 22 };
+        for (int c = 0; c < w.Length; c++)
+            w[c] = Math.Min(w[c] + 2, caps[c]);
+
+        // 标题是 16 号字，列宽单位按 11 号字计算：先按字号放大，再留出单元格内边距
+        double titleWidth = DisplayWidth(title) * (16.0 / 11.0) + 4;
         double totalWidth = w.Sum();
         if (totalWidth < titleWidth)
         {
-            double add = (titleWidth - totalWidth) / cols + 0.1;
-            for (int c = 0; c < cols; c++) w[c] += add;
+            double add = (titleWidth - totalWidth) / w.Length + 0.1;
+            for (int c = 0; c < w.Length; c++) w[c] += add;
         }
         return w;
     }
 
     // ---------- 工作簿打包 ----------
 
-    private static void WriteWorkbook(string path, IReadOnlyList<SheetData> sheets)
+    private static void WriteWorkbook(string path, IReadOnlyList<SheetXml> sheets)
     {
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write);
         using var zip = new ZipArchive(fs, ZipArchiveMode.Create, false, Encoding.UTF8);
@@ -362,7 +366,14 @@ public static class ExcelExporter
         WriteEntry(zip, "xl/styles.xml", BuildStyles());
 
         for (int i = 0; i < sheets.Count; i++)
-            WriteEntry(zip, $"xl/worksheets/sheet{i + 1}.xml", BuildSheetXml(sheets[i]));
+        {
+            // 每个工作表可指定标签颜色：在 sheetPr 中插入 tabColor
+            string xml = sheets[i].Xml;
+            xml = xml.Replace(
+                "<sheetPr><pageSetUpPr",
+                $"<sheetPr><tabColor rgb=\"{sheets[i].TabColor}\"/><pageSetUpPr");
+            WriteEntry(zip, $"xl/worksheets/sheet{i + 1}.xml", xml);
+        }
     }
 
     // ---------- 样式 ----------
@@ -371,11 +382,12 @@ public static class ExcelExporter
     {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
             "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">" +
-            "<fonts count=\"4\">" +
+            "<fonts count=\"5\">" +
             "<font><sz val=\"11\"/><name val=\"等线\"/></font>" +
             "<font><b/><sz val=\"16\"/><color rgb=\"FF1F4E79\"/><name val=\"等线\"/></font>" +
             "<font><b/><sz val=\"11\"/><color rgb=\"FFFFFFFF\"/><name val=\"等线\"/></font>" +
             "<font><b/><sz val=\"11\"/><name val=\"等线\"/></font>" +
+            "<font><b/><sz val=\"12\"/><color rgb=\"FF1F4E79\"/><name val=\"等线\"/></font>" +
             "</fonts>" +
             "<fills count=\"5\">" +
             "<fill><patternFill patternType=\"none\"/></fill>" +
@@ -394,7 +406,7 @@ public static class ExcelExporter
             "<diagonal/></border>" +
             "</borders>" +
             "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>" +
-            "<cellXfs count=\"9\">" +
+            "<cellXfs count=\"10\">" +
             // 0 默认
             "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>" +
             // 1 标题
@@ -413,6 +425,8 @@ public static class ExcelExporter
             "<xf numFmtId=\"0\" fontId=\"3\" fillId=\"4\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf>" +
             // 8 合计数字
             "<xf numFmtId=\"1\" fontId=\"3\" fillId=\"4\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf>" +
+            // 9 分节标题
+            "<xf numFmtId=\"0\" fontId=\"4\" fillId=\"4\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\"/></xf>" +
             "</cellXfs>" +
             "</styleSheet>";
     }
@@ -422,17 +436,8 @@ public static class ExcelExporter
     private static string TextCell(string reference, string? text, int style)
         => $"<c r=\"{reference}\" s=\"{style}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{Escape(text)}</t></is></c>";
 
-    private static string ColumnLetter(int index)
-    {
-        var result = string.Empty;
-        while (index > 0)
-        {
-            index--;
-            result = (char)('A' + index % 26) + result;
-            index /= 26;
-        }
-        return result;
-    }
+    private static string NumCell(string reference, int value, int style)
+        => $"<c r=\"{reference}\" s=\"{style}\"><v>{value.ToString(CultureInfo.InvariantCulture)}</v></c>";
 
     // 估算文本显示宽度：半角 1，全角/中文 2
     private static double DisplayWidth(string? s)

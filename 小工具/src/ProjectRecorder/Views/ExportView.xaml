@@ -4,7 +4,7 @@
     <!-- 通用入口：导出合计 Excel（单日 / 日期范围批量） -->
     <Grid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock Text="单日导出：默认本班次，选日期后导出该日期合计" FontSize="12"
+            <TextBlock Text="单日导出：默认本班次，工作表内含当日汇总 + 明细" FontSize="12"
                        Foreground="#6B7280" HorizontalAlignment="Center"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
                 <Button x:Name="ExpPrevDay" Content="◀" Width="30" Height="30"
@@ -27,7 +27,7 @@
 
             <Border Height="1" Background="#E5E7EB" Width="420" Margin="0,26,0,0"/>
 
-            <TextBlock Text="批量导出：选择日期范围，生成 汇总 / 每日汇总 / 明细 三个工作表"
+            <TextBlock Text="批量导出：一个文件，每天一个工作表（含当日汇总 + 明细），无数据日期跳过"
                        FontSize="12" Foreground="#6B7280" HorizontalAlignment="Center"
                        Margin="0,16,0,0"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">

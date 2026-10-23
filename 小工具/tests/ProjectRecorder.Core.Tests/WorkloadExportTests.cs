@@ -219,20 +219,36 @@ public class ExcelExporterTests
             using var zip = ZipFile.OpenRead(path);
             Assert.NotNull(zip.GetEntry("xl/styles.xml"));
             Assert.NotNull(zip.GetEntry("xl/worksheets/sheet1.xml"));
-            Assert.NotNull(zip.GetEntry("xl/worksheets/sheet2.xml"));
+            Assert.Null(zip.GetEntry("xl/worksheets/sheet2.xml"));
 
             var styles = XDocument.Parse(ReadEntry(zip, "xl/styles.xml"));
             var cellXfs = styles.Descendants(Ns + "cellXfs").First();
-            Assert.Equal("9", (string?)cellXfs.Attribute("count"));
+            Assert.Equal("10", (string?)cellXfs.Attribute("count"));
 
             var sheet1 = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet1.xml"));
-            Assert.Equal("甲", CellValue(sheet1, "B3"));
-            Assert.Equal("乙", CellValue(sheet1, "B4"));
-            Assert.Equal("1", CellValue(sheet1, "C3"));
+            Assert.Equal("一、汇总", CellValue(sheet1, "A2"));
+            Assert.Equal("甲", CellValue(sheet1, "B4"));
+            Assert.Equal("乙", CellValue(sheet1, "B5"));
+            Assert.Equal("1", CellValue(sheet1, "C4"));
+            Assert.Equal("3", CellValue(sheet1, "C6"));
+            Assert.Equal("二、明细（每次执行）", CellValue(sheet1, "A8"));
+            Assert.Equal("甲", CellValue(sheet1, "B10"));
+            Assert.Equal("乙", CellValue(sheet1, "B11"));
             Assert.NotNull(sheet1.Descendants(Ns + "pane").FirstOrDefault());
             Assert.NotNull(sheet1.Descendants(Ns + "autoFilter").FirstOrDefault());
             Assert.NotNull(sheet1.Descendants(Ns + "mergeCell")
-                .FirstOrDefault(x => (string?)x.Attribute("ref") == "A1:C1"));
+                .FirstOrDefault(x => (string?)x.Attribute("ref") == "A1:E1"));
+            Assert.NotNull(sheet1.Descendants(Ns + "tabColor").FirstOrDefault());
+
+            var ignored = sheet1.Descendants(Ns + "ignoredError").FirstOrDefault();
+            Assert.NotNull(ignored);
+            Assert.Equal("1", (string?)ignored!.Attribute("numberStoredAsText"));
+
+            // 标题用 16 号字，列宽总和必须覆盖标题实际宽度，避免打开就被截断
+            double totalWidth = sheet1.Descendants(Ns + "col")
+                .Select(c => double.Parse((string)c.Attribute("width")!, System.Globalization.CultureInfo.InvariantCulture))
+                .Sum();
+            Assert.True(totalWidth >= 38.0, $"列宽总和 {totalWidth} 不足以显示标题");
         }
         finally
         {
@@ -241,7 +257,43 @@ public class ExcelExporterTests
     }
 
     [Fact]
-    public void ExportWorkloadBatch_WritesSummaryDailyAndDetailSheets()
+    public void ExportWorkload_NumericProjectAndProcess_StaysTextWithoutWarning()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"pr_numeric_{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            var processes = new[]
+            {
+                new WorkloadProcess { ProjectName = "123456", ProcessName = "00123", Order = 1 }
+            };
+            var day = new DateTime(2026, 10, 22);
+            var records = new List<WorkloadRecord>
+            {
+                new() { ProjectName = "123456", ProcessName = "00123", WorkDate = day, Shift = WorkloadRecord.DayShift, Quantity = 1 }
+            };
+
+            ExcelExporter.ExportWorkload(path, day, records, null, processes, new[] { "123456" });
+
+            using var zip = ZipFile.OpenRead(path);
+            var sheet1 = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet1.xml"));
+            var projectCell = sheet1.Descendants(Ns + "c").First(c => (string?)c.Attribute("r") == "A4");
+            var processCell = sheet1.Descendants(Ns + "c").First(c => (string?)c.Attribute("r") == "B4");
+
+            Assert.Equal("inlineStr", (string?)projectCell.Attribute("t"));
+            Assert.Equal("inlineStr", (string?)processCell.Attribute("t"));
+            Assert.Equal("123456", CellValue(sheet1, "A4"));
+            Assert.Equal("00123", CellValue(sheet1, "B4"));
+            Assert.NotNull(sheet1.Descendants(Ns + "ignoredError")
+                .FirstOrDefault(x => (string?)x.Attribute("numberStoredAsText") == "1"));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void ExportWorkloadBatch_OneSheetPerDay_WithSummaryAndDetailsTogether()
     {
         string path = Path.Combine(Path.GetTempPath(), $"pr_batch_{Guid.NewGuid():N}.xlsx");
         try
@@ -260,23 +312,34 @@ public class ExcelExporterTests
                 new() { ProjectName = "P", ProcessName = "甲", WorkDate = d2, Shift = WorkloadRecord.NightShift, Quantity = 3, IsBackfill = true }
             };
 
+            // 结束日期故意多一天（10-22 无数据），应只生成有数据的两个日工作表
             int count = ExcelExporter.ExportWorkloadBatch(
-                path, d1, d2, null, records, processes, new[] { "P" });
+                path, d1, d2.AddDays(1), null, records, processes, new[] { "P" });
 
             Assert.Equal(2, count);
             using var zip = ZipFile.OpenRead(path);
-            Assert.Equal(new[] { "汇总", "每日汇总", "明细" }, SheetNames(zip));
-            Assert.NotNull(zip.GetEntry("xl/worksheets/sheet3.xml"));
+            Assert.Equal(new[] { "2026-10-20", "2026-10-21" }, SheetNames(zip));
+            Assert.Null(zip.GetEntry("xl/worksheets/sheet3.xml"));
 
-            var daily = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet2.xml"));
-            Assert.Equal("2026-10-20", CellValue(daily, "A3"));
-            Assert.Equal("2026-10-21", CellValue(daily, "A5"));
+            // 第一天：汇总 + 明细在同一个工作表
+            var day1 = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet1.xml"));
+            Assert.Equal("一、汇总", CellValue(day1, "A2"));
+            Assert.Equal("甲", CellValue(day1, "B4"));
+            Assert.Equal("乙", CellValue(day1, "B5"));
+            Assert.Equal("3", CellValue(day1, "C6"));
+            Assert.Equal("二、明细（每次执行）", CellValue(day1, "A8"));
+            Assert.Equal("甲", CellValue(day1, "B10"));
+            Assert.Equal("乙", CellValue(day1, "B11"));
 
-            var detail = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet3.xml"));
-            // 按日期/班次/UI 工序顺序：d1 甲、d1 乙、d2 甲
-            Assert.Equal("甲", CellValue(detail, "B3"));
-            Assert.Equal("乙", CellValue(detail, "B4"));
-            Assert.Equal("补录", CellValue(detail, "F5"));
+            // 第二天：同样一个工作表，夜班补录明细
+            var day2 = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet2.xml"));
+            Assert.Equal("一、汇总", CellValue(day2, "A2"));
+            Assert.Equal("甲", CellValue(day2, "B4"));
+            Assert.Equal("3", CellValue(day2, "C4"));
+            Assert.Equal("二、明细（每次执行）", CellValue(day2, "A7"));
+            Assert.Equal("甲", CellValue(day2, "B9"));
+            Assert.Equal("夜班", CellValue(day2, "C9"));
+            Assert.Equal("补录", CellValue(day2, "E9"));
         }
         finally
         {

@@ -11,7 +11,7 @@ namespace ProjectRecorder.Views;
 
 /// <summary>
 /// 通用模块「导出」页：默认导出本班次，也可选历史日期或日期范围批量导出（xlsx）。
-/// 工序顺序与工作量界面一致；表格带样式、冻结表头和筛选。
+/// 每个日期一个工作表，工作表内同时包含当日汇总和明细；工序顺序与工作量界面一致。
 /// </summary>
 public partial class ExportView : UserControl
 {
@@ -108,7 +108,7 @@ public partial class ExportView : UserControl
         }
     }
 
-    // 批量导出：日期范围内所有记录合成一个工作簿（汇总 / 每日汇总 / 明细）
+    // 批量导出：日期范围内每天一个工作表，每个工作表包含当日汇总和明细
     private void BtnBatchExport_Click(object sender, RoutedEventArgs e)
     {
         _monitor?.NotifyActivity();
@@ -183,8 +183,9 @@ public partial class ExportView : UserControl
             var (processes, projectOrder) = LoadOrderContext();
             int rowCount = ExcelExporter.ExportWorkloadBatch(
                 fileDlg.FileName, start, end, shift, list, processes, projectOrder);
+            int dayCount = list.Select(x => x.WorkDate.Date).Distinct().Count();
             MessageBox.Show(
-                $"导出成功：{rowCount} 条工序合计，{list.Count} 条明细。\n{fileDlg.FileName}",
+                $"导出成功：{dayCount} 天（每天一个工作表），{rowCount} 条工序合计，{list.Count} 条明细。\n{fileDlg.FileName}",
                 "批量导出", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
