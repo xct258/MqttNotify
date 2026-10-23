@@ -117,6 +117,27 @@ public partial class WorkloadView : UserControl
             records.Where(x => x.ProjectName == _project),
             _date, _shift);
 
+        // 通用工作量页末尾固定追加“其它”卡片：点击手动录入项目 + 时间
+        if (_project == DataStore.FixedMachineProject)
+        {
+            var otherRecords = records
+                .Where(x => x.IsOther && x.WorkDate.Date == _date && x.Shift == _shift)
+                .ToList();
+            cards.Add(new WorkCard
+            {
+                IsOther = true,
+                Process = new WorkloadProcess
+                {
+                    Id = "__other__",
+                    ProjectName = _project,
+                    ProcessName = WorkloadRecord.OtherProcessName,
+                    Order = int.MaxValue,
+                    CreatedTime = DateTime.MaxValue
+                },
+                ShiftQty = otherRecords.Sum(x => x.Quantity)
+            });
+        }
+
         LstWorkProcess.ItemsSource = null;
         LstWorkProcess.ItemsSource = cards;
         TxtWProcessEmpty.Visibility = cards.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -262,7 +283,50 @@ public partial class WorkloadView : UserControl
             e.Handled = true;
             return;
         }
+        // “其它”卡片没有工序菜单，右键不弹菜单
+        if ((item.DataContext as WorkCard)?.IsOther == true)
+        {
+            item.IsSelected = true;
+            e.Handled = true;
+            return;
+        }
         item.IsSelected = true;
+    }
+
+    private void LstWorkProcess_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if ((LstWorkProcess.SelectedItem as WorkCard)?.IsOther == true)
+            e.Handled = true;
+    }
+
+    // 点击末尾“其它”卡片：弹窗录入项目 + 时间
+    private void WorkCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not WorkCard card || !card.IsOther)
+            return;
+        e.Handled = true;
+        _monitor?.NotifyActivity();
+        if (_data == null) return;
+
+        var dlg = new OtherWorkDialog(_monitor) { Owner = Window.GetWindow(this) };
+        if (dlg.ShowDialog() != true) return;
+
+        var all = _data.LoadWorkload();
+        if (all == null) return;
+        all.Add(new WorkloadRecord
+        {
+            ProjectName = dlg.ProjectName,
+            ProcessName = WorkloadRecord.OtherProcessName,
+            WorkDate = _date,
+            Shift = _shift,
+            Quantity = dlg.Hours,
+            IsOther = true,
+            IsBackfill = _backfill,
+            CreatedTime = (_backfill || !IsCurrentShift()) ? _moment : DateTime.Now
+        });
+        if (!_data.SaveWorkload(all)) return;
+
+        RefreshCards();
     }
 
     // 空白处松开右键不弹菜单（菜单在松开时触发，只拦按下不够）

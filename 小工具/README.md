@@ -70,7 +70,7 @@ chmod +x publish.sh && ./publish.sh
 - 选中项目后，右侧面板顶部切换 `工序` / `工作量` / `快捷路径`，无需逐级返回
 - 工序页：左列工序列表（`＋ 添加工序`、右键上移/下移/删除）；点选工序后右列显示步骤
 - 步骤：右上角 `＋ 添加操作步骤`（弹窗输文字、可插入多张图片：文件框可多选追加、单张 ≤5MB、缩略图点 × 移除）；点击配图放大（默认适应窗口，滚轮缩放，按住拖动平移，多图可上一张/下一张）；右键上移/下移/删除
-- 工作量页：无需选日期，自动记当前班次（页首显示班次日期 + 白/夜班，右上角 `＋ 添加工序`）；卡片显示 `已完成` 数量，换班次（8:30 / 21:00 / 跨日）自动从 0 重新统计
+- 工作量页：无需选日期，自动记当前班次（页首显示班次日期 + 白/夜班，右上角 `＋ 添加工序`）；卡片显示 `已完成` 数量，换班次（8:30 / 21:00 / 跨日）自动从 0 重新统计；`通用` 页卡片末尾固定有 `其它` 卡片，点击弹窗手动输入**项目 + 时间（小时）**，导出时按录入内容原样显示（项目=输入项目、工序=`其它`、数量=时间）
 - 补录：点页首班次标题（如 `2026-10-07 白班`）弹窗**只选日期 + 班次**，且只能选当前班次**之前**的班次（不能选当前或以后），确定后页面切到该班次，右侧显示 `补录中`；此时卡片 `添 加` 即把工作量补记到所选日期与班次（补录记录的卡片“最后完成时间”与导出明细的“执行时间”列都显示 `补录`，不显示时间）；点标题旁的 `回到现在` 可快速切回当前班次结束补录
 - 每张工序卡片 `- 数量 +` 调数量（步进 `1 ↔ -1` 不经过 0，数量不能为 0）；`添 加` 记入当前操作班次，负数即冲减/纠正多记；本班数量最低为 0，冲减超过本班数量时直接按本班数量冲减到 0（无弹窗）；右键卡片菜单 `查看执行明细` 弹窗列出该工序本班每次执行时间与增减数量（补录显示 `补录`），下方为 `上移` / `下移` / `删除该工序`
 - 班次：8:30~21:00 白班，其余夜班；0:00~8:30 的夜班归前一日（如 12 号 7 点记 11 号夜班）
@@ -113,7 +113,7 @@ chmod +x publish.sh && ./publish.sh
   Helpers/ClipboardHelper.cs           带超时的剪贴板复制（STA 子线程）
   tests/ProjectRecorder.Core.Tests/    纯逻辑单元测试（net8.0，`dotnet test` 可直接跑）
   MindMapWindow / FileVaultWindow（通用主页卡片弹出的独立窗口，顶部独立分组管理）
-  AddProjectDialog / AddProcessDialog / StepDialog（含配图）/ ShiftPickerDialog（补录时间+班次）/ GroupPickerDialog（选择/管理分组）/ WorkDetailDialog（执行明细）/ PathShortcutDialog（名称+路径+浏览）/ NameInputDialog（导图/分组命名）/ MindNodeDialog（节点标题+内容）/ MindMapHelpDialog（操作教程）/ ManualCopyDialog（手动复制网址）/ ImageViewerDialog
+  AddProjectDialog / AddProcessDialog / StepDialog（含配图）/ ShiftPickerDialog（补录时间+班次）/ GroupPickerDialog（选择/管理分组）/ WorkDetailDialog（执行明细）/ OtherWorkDialog（其它：项目+时间）/ PathShortcutDialog（名称+路径+浏览）/ NameInputDialog（导图/分组命名）/ MindNodeDialog（节点标题+内容）/ MindMapHelpDialog（操作教程）/ ManualCopyDialog（手动复制网址）/ ImageViewerDialog
   Models/ProcessItem.cs(FlowStep) / WorkloadRecord.cs / WorkloadProcess.cs / PathShortcut.cs / MindMap.cs(MindNode,含ProjectName分组) / NoteItem.cs(笔记) / EncryptedFile.cs(加密文件,含ProjectName分组)
   Services/AuthService.cs / CryptoService.cs / DataStore.cs / InactivityMonitor.cs / ExcelExporter.cs(手写xlsx) / MindMapOutlineExporter.cs(导图文本大纲)
   Services/WorkloadService.cs(卡片统计/步进/冲减钳制，纯逻辑) / ShiftService.cs(班次计算，纯逻辑) / WorkloadExportBuilder.cs(导出排序/聚合，纯逻辑) / DataService.cs(绑定会话密码的数据门面，统一错误出口)

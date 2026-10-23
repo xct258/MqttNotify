@@ -18,6 +18,9 @@ public sealed class WorkCard
 
     /// <summary>本班最后一次执行时间（HH:mm:ss，补录时为“补录”），无记录时为“暂无”。</summary>
     public string LastTimeText { get; set; } = "暂无";
+
+    /// <summary>是否为「通用」页末尾固定的“其它”卡片。</summary>
+    public bool IsOther { get; set; }
 }
 
 /// <summary>

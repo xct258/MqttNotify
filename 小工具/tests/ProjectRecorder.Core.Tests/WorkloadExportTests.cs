@@ -308,6 +308,48 @@ public class ExcelExporterTests
     }
 
     [Fact]
+    public void ExportWorkload_OtherRecord_ShowsProjectAndTimeAsEntered()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"pr_other_{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            var day = new DateTime(2026, 10, 23);
+            var records = new List<WorkloadRecord>
+            {
+                new()
+                {
+                    ProjectName = "参加比赛",
+                    ProcessName = WorkloadRecord.OtherProcessName,
+                    WorkDate = day,
+                    Shift = WorkloadRecord.DayShift,
+                    Quantity = 2,
+                    IsOther = true,
+                    CreatedTime = day.AddHours(10)
+                }
+            };
+
+            int count = ExcelExporter.ExportWorkload(
+                path, day, records, null, null, new[] { "通用" });
+
+            Assert.Equal(1, count);
+            using var zip = ZipFile.OpenRead(path);
+            var sheet = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet1.xml"));
+
+            // 汇总和明细都原样显示：项目=参加比赛，工序=其它，数量/时间=2
+            Assert.Equal("参加比赛", CellValue(sheet, "A4"));
+            Assert.Equal("其它", CellValue(sheet, "B4"));
+            Assert.Equal("2", CellValue(sheet, "E4"));
+            Assert.Equal("参加比赛", CellValue(sheet, "A8"));
+            Assert.Equal("其它", CellValue(sheet, "B8"));
+            Assert.Equal("2", CellValue(sheet, "D8"));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void ExportWorkloadBatch_OneSheetPerDay_WithSummaryAndDetailsTogether()
     {
         string path = Path.Combine(Path.GetTempPath(), $"pr_batch_{Guid.NewGuid():N}.xlsx");
