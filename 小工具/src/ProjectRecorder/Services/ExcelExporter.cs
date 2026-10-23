@@ -141,15 +141,16 @@ public static class ExcelExporter
         sb.Append("</row>");
         row++;
 
-        // 汇总表头
+        // 汇总表头（项目 | 工序跨 B:D | 数量）
         sb.Append($"<row r=\"{row}\" ht=\"22\" customHeight=\"1\">");
         sb.Append(TextCell($"A{row}", "项目", 2));
         sb.Append(TextCell($"B{row}", "工序", 2));
-        sb.Append(TextCell($"C{row}", "数量", 2));
+        sb.Append(TextCell($"E{row}", "数量", 2));
         sb.Append("</row>");
+        merges.Add($"B{row}:D{row}");
         row++;
 
-        // 汇总数据：同一项目纵向合并，斑马纹按项目分组交替
+        // 汇总数据：项目纵向合并，工序横向占用 B:D，数量放 E 列，铺满整张表宽
         int i = 0;
         bool shade = false;
         while (i < summary.Count)
@@ -165,8 +166,9 @@ public static class ExcelExporter
                 sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
                 sb.Append(TextCell($"A{row}", k == i ? summary[k].ProjectName : string.Empty, shade ? 5 : 3));
                 sb.Append(TextCell($"B{row}", summary[k].ProcessName, shade ? 5 : 3));
-                sb.Append(NumCell($"C{row}", summary[k].Quantity, shade ? 6 : 4));
+                sb.Append(NumCell($"E{row}", summary[k].Quantity, shade ? 6 : 4));
                 sb.Append("</row>");
+                merges.Add($"B{row}:D{row}");
                 row++;
             }
             if (j > i) merges.Add($"A{groupStart}:A{row - 1}");
@@ -174,16 +176,6 @@ public static class ExcelExporter
             i = j + 1;
             shade = !shade;
         }
-
-        // 汇总合计
-        int total = summary.Sum(x => x.Quantity);
-        sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
-        sb.Append(TextCell($"A{row}", "合计", 7));
-        sb.Append(TextCell($"B{row}", string.Empty, 7));
-        sb.Append(NumCell($"C{row}", total, 8));
-        sb.Append("</row>");
-        merges.Add($"A{row}:B{row}");
-        row++;
 
         // 间隔行
         sb.Append($"<row r=\"{row}\" ht=\"10\"/>");
@@ -221,7 +213,7 @@ public static class ExcelExporter
             sb.Append(TextCell($"B{row}", d.ProcessName ?? string.Empty, shaded ? 5 : 3));
             sb.Append(TextCell($"C{row}", d.Shift ?? string.Empty, shaded ? 5 : 3));
             sb.Append(NumCell($"D{row}", d.Quantity, shaded ? 6 : 4));
-            sb.Append(TextCell($"E{row}", d.IsBackfill ? "补录" : d.CreatedTime.ToString("yyyy-MM-dd HH:mm:ss"), shaded ? 5 : 3));
+            sb.Append(TextCell($"E{row}", FormatDetailTime(d), shaded ? 5 : 3));
             sb.Append("</row>");
             row++;
         }
@@ -284,7 +276,7 @@ public static class ExcelExporter
         {
             DisplayWidth("项目"),
             DisplayWidth("工序"),
-            Math.Max(DisplayWidth("数量"), DisplayWidth("班次")),
+            DisplayWidth("班次"),
             DisplayWidth("数量"),
             DisplayWidth("执行时间")
         };
@@ -293,7 +285,7 @@ public static class ExcelExporter
         {
             w[0] = Math.Max(w[0], DisplayWidth(s.ProjectName));
             w[1] = Math.Max(w[1], DisplayWidth(s.ProcessName));
-            w[2] = Math.Max(w[2], DisplayWidth(s.Quantity.ToString(CultureInfo.InvariantCulture)));
+            w[4] = Math.Max(w[4], DisplayWidth(s.Quantity.ToString(CultureInfo.InvariantCulture)));
         }
 
         foreach (var d in details)
@@ -302,15 +294,15 @@ public static class ExcelExporter
             w[1] = Math.Max(w[1], DisplayWidth(d.ProcessName));
             w[2] = Math.Max(w[2], DisplayWidth(d.Shift));
             w[3] = Math.Max(w[3], DisplayWidth(d.Quantity.ToString(CultureInfo.InvariantCulture)));
-            w[4] = Math.Max(w[4], DisplayWidth(d.IsBackfill ? "补录" : d.CreatedTime.ToString("yyyy-MM-dd HH:mm:ss")));
+            w[4] = Math.Max(w[4], DisplayWidth(FormatDetailTime(d)));
         }
 
-        double[] caps = { 80, 80, 12, 12, 22 };
+        double[] caps = { 80, 60, 10, 10, 12 };
         for (int c = 0; c < w.Length; c++)
             w[c] = Math.Min(w[c] + 2, caps[c]);
 
         // 标题是 16 号字，列宽单位按 11 号字计算：先按字号放大，再留出单元格内边距
-        double titleWidth = DisplayWidth(title) * (16.0 / 11.0) + 4;
+        double titleWidth = DisplayWidth(title) * (16.0 / 11.0) + 8;
         double totalWidth = w.Sum();
         if (totalWidth < titleWidth)
         {
@@ -399,10 +391,10 @@ public static class ExcelExporter
             "<borders count=\"2\">" +
             "<border><left/><right/><top/><bottom/><diagonal/></border>" +
             "<border>" +
-            "<left style=\"thin\"><color rgb=\"FFD1D5DB\"/></left>" +
-            "<right style=\"thin\"><color rgb=\"FFD1D5DB\"/></right>" +
-            "<top style=\"thin\"><color rgb=\"FFD1D5DB\"/></top>" +
-            "<bottom style=\"thin\"><color rgb=\"FFD1D5DB\"/></bottom>" +
+            "<left style=\"thin\"><color rgb=\"FF000000\"/></left>" +
+            "<right style=\"thin\"><color rgb=\"FF000000\"/></right>" +
+            "<top style=\"thin\"><color rgb=\"FF000000\"/></top>" +
+            "<bottom style=\"thin\"><color rgb=\"FF000000\"/></bottom>" +
             "<diagonal/></border>" +
             "</borders>" +
             "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>" +
@@ -435,6 +427,10 @@ public static class ExcelExporter
 
     private static string TextCell(string reference, string? text, int style)
         => $"<c r=\"{reference}\" s=\"{style}\" t=\"inlineStr\"><is><t xml:space=\"preserve\">{Escape(text)}</t></is></c>";
+
+    // 每个工作表就是一天，明细只显示时间；补录仍显示“补录”
+    private static string FormatDetailTime(WorkloadRecord record)
+        => record.IsBackfill ? "补录" : record.CreatedTime.ToString("HH:mm:ss");
 
     private static string NumCell(string reference, int value, int style)
         => $"<c r=\"{reference}\" s=\"{style}\"><v>{value.ToString(CultureInfo.InvariantCulture)}</v></c>";

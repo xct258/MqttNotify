@@ -227,18 +227,32 @@ public class ExcelExporterTests
 
             var sheet1 = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet1.xml"));
             Assert.Equal("一、汇总", CellValue(sheet1, "A2"));
+            Assert.Equal("工序", CellValue(sheet1, "B3"));
+            Assert.Equal("数量", CellValue(sheet1, "E3"));
             Assert.Equal("甲", CellValue(sheet1, "B4"));
             Assert.Equal("乙", CellValue(sheet1, "B5"));
-            Assert.Equal("1", CellValue(sheet1, "C4"));
-            Assert.Equal("3", CellValue(sheet1, "C6"));
-            Assert.Equal("二、明细（每次执行）", CellValue(sheet1, "A8"));
-            Assert.Equal("甲", CellValue(sheet1, "B10"));
-            Assert.Equal("乙", CellValue(sheet1, "B11"));
+            Assert.Equal("1", CellValue(sheet1, "E4"));
+            Assert.Null(CellValue(sheet1, "C4")); // 汇总不再空出 C:D
+            Assert.Null(CellValue(sheet1, "C6")); // 不再生成“合计”行
+            Assert.Equal("二、明细（每次执行）", CellValue(sheet1, "A7"));
+            Assert.Equal("甲", CellValue(sheet1, "B9"));
+            Assert.Equal("乙", CellValue(sheet1, "B10"));
+            Assert.DoesNotContain("合计", sheet1.Descendants(Ns + "t").Select(t => t.Value));
             Assert.NotNull(sheet1.Descendants(Ns + "pane").FirstOrDefault());
             Assert.NotNull(sheet1.Descendants(Ns + "autoFilter").FirstOrDefault());
             Assert.NotNull(sheet1.Descendants(Ns + "mergeCell")
                 .FirstOrDefault(x => (string?)x.Attribute("ref") == "A1:E1"));
+            Assert.NotNull(sheet1.Descendants(Ns + "mergeCell")
+                .FirstOrDefault(x => (string?)x.Attribute("ref") == "B3:D3"));
             Assert.NotNull(sheet1.Descendants(Ns + "tabColor").FirstOrDefault());
+
+            // 表格使用黑色细边框
+            var border = styles.Descendants(Ns + "border").Skip(1).First();
+            foreach (var edge in border.Elements().Where(x => x.Name.LocalName != "diagonal"))
+            {
+                Assert.Equal("thin", (string?)edge.Attribute("style"));
+                Assert.Equal("FF000000", (string?)edge.Element(Ns + "color")?.Attribute("rgb"));
+            }
 
             var ignored = sheet1.Descendants(Ns + "ignoredError").FirstOrDefault();
             Assert.NotNull(ignored);
@@ -326,20 +340,25 @@ public class ExcelExporterTests
             Assert.Equal("一、汇总", CellValue(day1, "A2"));
             Assert.Equal("甲", CellValue(day1, "B4"));
             Assert.Equal("乙", CellValue(day1, "B5"));
-            Assert.Equal("3", CellValue(day1, "C6"));
-            Assert.Equal("二、明细（每次执行）", CellValue(day1, "A8"));
-            Assert.Equal("甲", CellValue(day1, "B10"));
-            Assert.Equal("乙", CellValue(day1, "B11"));
+            Assert.Equal("1", CellValue(day1, "E4"));
+            Assert.Equal("2", CellValue(day1, "E5"));
+            Assert.Equal("二、明细（每次执行）", CellValue(day1, "A7"));
+            Assert.Equal("甲", CellValue(day1, "B9"));
+            Assert.Equal("09:00:00", CellValue(day1, "E9"));
+            Assert.Equal("乙", CellValue(day1, "B10"));
+            Assert.DoesNotContain("合计", day1.Descendants(Ns + "t").Select(t => t.Value));
 
             // 第二天：同样一个工作表，夜班补录明细
             var day2 = XDocument.Parse(ReadEntry(zip, "xl/worksheets/sheet2.xml"));
             Assert.Equal("一、汇总", CellValue(day2, "A2"));
             Assert.Equal("甲", CellValue(day2, "B4"));
-            Assert.Equal("3", CellValue(day2, "C4"));
-            Assert.Equal("二、明细（每次执行）", CellValue(day2, "A7"));
-            Assert.Equal("甲", CellValue(day2, "B9"));
-            Assert.Equal("夜班", CellValue(day2, "C9"));
-            Assert.Equal("补录", CellValue(day2, "E9"));
+            Assert.Equal("3", CellValue(day2, "E4"));
+            Assert.Equal("二、明细（每次执行）", CellValue(day2, "A6"));
+            Assert.Equal("甲", CellValue(day2, "B8"));
+            Assert.Equal("夜班", CellValue(day2, "C8"));
+            Assert.Equal("3", CellValue(day2, "D8"));
+            Assert.Equal("补录", CellValue(day2, "E8"));
+            Assert.DoesNotContain("合计", day2.Descendants(Ns + "t").Select(t => t.Value));
         }
         finally
         {
