@@ -232,7 +232,8 @@ public class ExcelExporterTests
             Assert.Equal("甲", CellValue(sheet1, "B4"));
             Assert.Equal("乙", CellValue(sheet1, "B5"));
             Assert.Equal("1", CellValue(sheet1, "E4"));
-            Assert.Null(CellValue(sheet1, "C4")); // 汇总不再空出 C:D
+            Assert.Equal("", CellValue(sheet1, "C4")); // B:D 合并区内的空单元格也带边框样式
+            Assert.Equal("", CellValue(sheet1, "D4"));
             Assert.Null(CellValue(sheet1, "C6")); // 不再生成“合计”行
             Assert.Equal("二、明细（每次执行）", CellValue(sheet1, "A7"));
             Assert.Equal("甲", CellValue(sheet1, "B9"));

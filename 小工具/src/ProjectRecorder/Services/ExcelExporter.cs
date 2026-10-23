@@ -145,6 +145,8 @@ public static class ExcelExporter
         sb.Append($"<row r=\"{row}\" ht=\"22\" customHeight=\"1\">");
         sb.Append(TextCell($"A{row}", "项目", 2));
         sb.Append(TextCell($"B{row}", "工序", 2));
+        sb.Append(TextCell($"C{row}", string.Empty, 2));
+        sb.Append(TextCell($"D{row}", string.Empty, 2));
         sb.Append(TextCell($"E{row}", "数量", 2));
         sb.Append("</row>");
         merges.Add($"B{row}:D{row}");
@@ -166,6 +168,8 @@ public static class ExcelExporter
                 sb.Append($"<row r=\"{row}\" ht=\"20\" customHeight=\"1\">");
                 sb.Append(TextCell($"A{row}", k == i ? summary[k].ProjectName : string.Empty, shade ? 5 : 3));
                 sb.Append(TextCell($"B{row}", summary[k].ProcessName, shade ? 5 : 3));
+                sb.Append(TextCell($"C{row}", string.Empty, shade ? 5 : 3));
+                sb.Append(TextCell($"D{row}", string.Empty, shade ? 5 : 3));
                 sb.Append(NumCell($"E{row}", summary[k].Quantity, shade ? 6 : 4));
                 sb.Append("</row>");
                 merges.Add($"B{row}:D{row}");
