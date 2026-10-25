@@ -20,8 +20,8 @@
         <Grid Grid.Row="1" Margin="12,0,12,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="14"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="ColShortcutGap" Width="14"/>
+                <ColumnDefinition x:Name="ColShortcutUrl" Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- 文件夹 -->
@@ -71,8 +71,8 @@
                 </Grid>
             </Grid>
 
-            <!-- 网址 -->
-            <Grid Grid.Column="2">
+            <!-- 网址（仅通用模块显示） -->
+            <Grid x:Name="UrlShortcutPanel" Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>

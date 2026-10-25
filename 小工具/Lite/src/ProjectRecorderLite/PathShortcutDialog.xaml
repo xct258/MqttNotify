@@ -7,9 +7,9 @@
         <TextBlock Text="名称 *" FontSize="13" FontWeight="Bold" Foreground="#374151"/>
         <TextBox x:Name="TxtName" Height="32" Margin="0,8,0,0" VerticalContentAlignment="Center" MaxLength="50"/>
 
-        <TextBlock Text="类型 *" FontSize="13" FontWeight="Bold"
+        <TextBlock x:Name="TxtKindLabel" Text="类型 *" FontSize="13" FontWeight="Bold"
                    Foreground="#374151" Margin="0,14,0,0"/>
-        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+        <StackPanel x:Name="KindPanel" Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
             <RadioButton x:Name="RdoFolder" Content="文件夹" GroupName="ShortcutKind"
                          IsChecked="True" Checked="Kind_Changed"/>
             <RadioButton x:Name="RdoUrl" Content="网址" GroupName="ShortcutKind"

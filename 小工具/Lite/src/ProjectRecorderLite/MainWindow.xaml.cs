@@ -44,14 +44,18 @@ public partial class MainWindow : Window
     {
         _projects = LiteStore.Projects;
 
+        // 第一项固定为「通用」，其后是项目
+        var navItems = new List<string> { LiteStore.GeneralProject };
+        navItems.AddRange(_projects);
+
         _suppressSelection = true;
         LstProjects.ItemsSource = null;
-        LstProjects.ItemsSource = _projects;
+        LstProjects.ItemsSource = navItems;
         _suppressSelection = false;
 
         TxtProjectEmpty.Visibility = _projects.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        if (keep != null && _projects.Contains(keep))
+        if (keep != null && (keep == LiteStore.GeneralProject || _projects.Contains(keep)))
         {
             LstProjects.SelectedItem = keep;
             OpenProject(keep);
@@ -75,6 +79,7 @@ public partial class MainWindow : Window
         OpenProject(name);
     }
 
+    // 通用与项目共用右侧快捷路径面板；由 ShortcutView 判断是否显示网址栏
     private void OpenProject(string project)
     {
         TxtProjectTitle.Text = project;
@@ -96,6 +101,12 @@ public partial class MainWindow : Window
 
         string name = dlg.ProjectName.Trim();
         if (name.Length == 0) return;
+
+        if (name == LiteStore.GeneralProject)
+        {
+            MessageBox.Show("通用为独立模块，不可作为项目创建。", "校验", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
 
         if (_projects.Contains(name))
         {
@@ -127,7 +138,10 @@ public partial class MainWindow : Window
 
     private void ProjectsMenu_Opened(object sender, RoutedEventArgs e)
     {
-        bool isProject = LstProjects.SelectedItem is string p && !string.IsNullOrWhiteSpace(p);
+        // 「通用」是固定模块，不允许上移/下移/删除
+        bool isProject = LstProjects.SelectedItem is string p
+                         && !string.IsNullOrWhiteSpace(p)
+                         && p != LiteStore.GeneralProject;
         MenuMoveProjectUp.IsEnabled = isProject;
         MenuMoveProjectDown.IsEnabled = isProject;
         MenuDeleteProject.IsEnabled = isProject;
@@ -138,6 +152,12 @@ public partial class MainWindow : Window
         if (LstProjects.SelectedItem is not string project || string.IsNullOrWhiteSpace(project))
         {
             MessageBox.Show("请先点选要删除的项目。", "校验", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (project == LiteStore.GeneralProject)
+        {
+            MessageBox.Show("通用为固定模块，不能删除。", "校验", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -161,6 +181,7 @@ public partial class MainWindow : Window
     private void MoveProject(int delta)
     {
         if (LstProjects.SelectedItem is not string project || string.IsNullOrWhiteSpace(project)) return;
+        if (project == LiteStore.GeneralProject) return;
 
         int i = _projects.IndexOf(project);
         int j = i + delta;

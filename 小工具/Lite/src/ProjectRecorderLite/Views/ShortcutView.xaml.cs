@@ -13,7 +13,7 @@ using ProjectRecorderLite.Services;
 namespace ProjectRecorderLite.Views;
 
 /// <summary>
-/// 快捷路径视图：每个项目都同时支持「文件夹」和「网址」。
+/// 快捷路径视图：固定「通用」模块支持文件夹 + 网址，项目内仅文件夹。
 /// 文件夹单击用资源管理器打开；网址单击打开手动复制窗口（不再自动写入剪贴板）。
 /// </summary>
 public partial class ShortcutView : UserControl
@@ -21,14 +21,18 @@ public partial class ShortcutView : UserControl
     private readonly List<PathShortcut> _shortcuts = new();
     private string? _project;
 
-    private const string DefaultHint = "文件夹：单击用资源管理器打开；网址：单击打开手动复制窗口（全选后按 Ctrl+C）";
+    private const string GeneralHint = "文件夹：单击用资源管理器打开；网址：单击打开手动复制窗口（全选后按 Ctrl+C）";
+    private const string ProjectHint = "文件夹：单击用资源管理器打开";
 
     public ShortcutView()
     {
         InitializeComponent();
     }
 
-    /// <summary>按当前项目重新加载快捷路径。</summary>
+    private string HintDefault()
+        => _project == LiteStore.GeneralProject ? GeneralHint : ProjectHint;
+
+    /// <summary>按当前归属（通用或项目）重新加载快捷路径。</summary>
     public void Reload(string? project)
     {
         _project = project;
@@ -37,8 +41,17 @@ public partial class ShortcutView : UserControl
         if (!string.IsNullOrWhiteSpace(project))
             _shortcuts.AddRange(LiteStore.GetShortcuts(project!));
 
+        bool isGeneral = project == LiteStore.GeneralProject;
+
         var folders = _shortcuts.Where(x => !x.IsUrl).ToList();
-        var urls = _shortcuts.Where(x => x.IsUrl).ToList();
+        // 网址快捷路径只在「通用」显示（项目内只显示文件夹）
+        var urls = isGeneral
+            ? _shortcuts.Where(x => x.IsUrl).ToList()
+            : new List<PathShortcut>();
+
+        UrlShortcutPanel.Visibility = isGeneral ? Visibility.Visible : Visibility.Collapsed;
+        ColShortcutGap.Width = isGeneral ? new GridLength(14) : new GridLength(0);
+        ColShortcutUrl.Width = isGeneral ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
 
         LstFolderShortcuts.ItemsSource = null;
         LstFolderShortcuts.ItemsSource = folders;
@@ -48,14 +61,15 @@ public partial class ShortcutView : UserControl
         LstUrlShortcuts.ItemsSource = urls;
         TxtUrlShortcutEmpty.Visibility = urls.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        TxtShortcutHint.Text = DefaultHint;
+        TxtShortcutHint.Text = HintDefault();
     }
 
     private void BtnAddShortcut_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(_project)) return;
 
-        var dlg = new PathShortcutDialog { Owner = Window.GetWindow(this) };
+        bool allowUrl = _project == LiteStore.GeneralProject;
+        var dlg = new PathShortcutDialog(allowUrl) { Owner = Window.GetWindow(this) };
         if (dlg.ShowDialog() != true) return;
 
         if (_shortcuts.Any(x => x.Name == dlg.ShortcutName && x.FolderPath == dlg.ShortcutPath))

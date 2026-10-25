@@ -27,6 +27,9 @@ public static class LiteStore
     public const string DataFolderName = "Data";
     public const string DataFileName = "data.json";
 
+    /// <summary>固定「通用」模块：不属于项目列表，网址快捷路径只能放在这里。</summary>
+    public const string GeneralProject = "通用";
+
     private static LiteData? _data;
 
     public static string AppDir => AppDomain.CurrentDomain.BaseDirectory;
@@ -58,6 +61,7 @@ public static class LiteStore
     {
         name = (name ?? string.Empty).Trim();
         if (name.Length == 0) return false;
+        if (string.Equals(name, GeneralProject, StringComparison.Ordinal)) return false;
         if (Data.Projects.Contains(name)) return true;
 
         Data.Projects.Add(name);
@@ -68,6 +72,8 @@ public static class LiteStore
 
     public static bool RemoveProject(string name)
     {
+        if (string.Equals(name, GeneralProject, StringComparison.Ordinal)) return false;
+
         int index = Data.Projects.IndexOf(name);
         if (index < 0) return false;
 
@@ -88,6 +94,8 @@ public static class LiteStore
 
     public static bool MoveProject(string name, int delta)
     {
+        if (string.Equals(name, GeneralProject, StringComparison.Ordinal)) return true;
+
         int i = Data.Projects.IndexOf(name);
         int j = i + delta;
         if (i < 0 || j < 0 || j >= Data.Projects.Count) return true;
@@ -103,6 +111,13 @@ public static class LiteStore
     public static bool AddShortcut(PathShortcut shortcut)
     {
         if (shortcut == null) return false;
+
+        shortcut.ProjectName = (shortcut.ProjectName ?? string.Empty).Trim();
+        // 网址快捷路径只能放在「通用」
+        if (shortcut.IsUrl
+            && !string.Equals(shortcut.ProjectName, GeneralProject, StringComparison.Ordinal))
+            return false;
+
         shortcut.Id = string.IsNullOrEmpty(shortcut.Id) ? Guid.NewGuid().ToString() : shortcut.Id;
         shortcut.CreatedTime = shortcut.CreatedTime == default ? DateTime.Now : shortcut.CreatedTime;
 
@@ -197,10 +212,12 @@ public static class LiteStore
         data.Projects = data.Projects
             .Select(p => (p ?? string.Empty).Trim())
             .Where(p => p.Length > 0)
+            .Where(p => !string.Equals(p, GeneralProject, StringComparison.Ordinal))
             .Distinct()
             .ToList();
 
-        var projectSet = new HashSet<string>(data.Projects, StringComparer.Ordinal);
+        // 允许的归属：固定「通用」+ 全部项目
+        var ownerSet = new HashSet<string>(data.Projects, StringComparer.Ordinal) { GeneralProject };
 
         var shortcuts = new List<PathShortcut>();
         foreach (var sc in data.Shortcuts)
@@ -214,8 +231,12 @@ public static class LiteStore
             sc.FolderPath = sc.FolderPath ?? string.Empty;
             if (sc.CreatedTime == default) sc.CreatedTime = DateTime.Now;
 
-            // 丢弃找不到归属项目的脏数据
-            if (!projectSet.Contains(sc.ProjectName)) continue;
+            // 网址只能放在「通用」：历史数据里其它项目下的网址迁移到通用，避免丢失
+            if (sc.IsUrl && !string.Equals(sc.ProjectName, GeneralProject, StringComparison.Ordinal))
+                sc.ProjectName = GeneralProject;
+
+            // 丢弃找不到归属（通用或已存在项目）的脏数据
+            if (!ownerSet.Contains(sc.ProjectName)) continue;
             shortcuts.Add(sc);
         }
         data.Shortcuts = shortcuts;

@@ -15,9 +15,16 @@ public partial class PathShortcutDialog : Window
     public string ShortcutPath { get; private set; } = string.Empty;
     public string ShortcutKind { get; private set; } = PathShortcut.KindFolder;
 
-    public PathShortcutDialog()
+    public PathShortcutDialog(bool allowUrl = true)
     {
         InitializeComponent();
+        if (!allowUrl)
+        {
+            // 项目内只支持文件夹快捷路径：隐藏类型选择，锁定文件夹
+            TxtKindLabel.Visibility = Visibility.Collapsed;
+            KindPanel.Visibility = Visibility.Collapsed;
+            RdoFolder.IsChecked = true;
+        }
         TxtName.Focus();
     }
 
