@@ -9,7 +9,7 @@
         </Grid.RowDefinitions>
         <Grid Grid.Row="0" Margin="14,10">
             <TextBlock x:Name="TxtShortcutHint"
-                       Text="文件夹：单击用资源管理器打开；网址：单击复制到剪贴板（不打开浏览器）"
+                       Text="文件夹：单击用资源管理器打开；网址：单击打开手动复制窗口（全选后按 Ctrl+C）"
                        FontSize="12" Foreground="#6B7280" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis" Margin="0,0,120,0"/>
             <Button x:Name="BtnAddShortcut" Content="＋ 添加" HorizontalAlignment="Right"
@@ -76,7 +76,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <Grid Grid.Row="0" Margin="0,0,0,8">
-                    <TextBlock Text="网址（单击复制）" FontSize="13" FontWeight="Bold"
+                    <TextBlock Text="网址（单击手动复制）" FontSize="13" FontWeight="Bold"
                                Foreground="#374151" VerticalAlignment="Center"/>
                 </Grid>
                 <Grid Grid.Row="1">
@@ -91,7 +91,7 @@
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="复制网址" Click="MenuCopyUrlShortcut_Click"/>
+                                <MenuItem Header="手动复制网址" Click="MenuManualCopyUrlShortcut_Click"/>
                                 <MenuItem Header="删除该网址" Click="MenuDeleteUrlShortcut_Click"/>
                             </ContextMenu>
                         </ListBox.ContextMenu>
@@ -99,7 +99,7 @@
                             <DataTemplate>
                                 <Border Margin="0,3" Padding="10,8"
                                         Style="{StaticResource CardBorder}"
-                                        Cursor="Hand" ToolTip="单击复制网址"
+                                        Cursor="Hand" ToolTip="单击打开手动复制窗口"
                                         MouseLeftButtonUp="ShortcutUrl_Click">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Name}" FontSize="14"

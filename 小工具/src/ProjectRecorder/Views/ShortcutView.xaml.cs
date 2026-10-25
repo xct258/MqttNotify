@@ -3,12 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
 using ProjectRecorder.Helpers;
 using ProjectRecorder.Models;
 using ProjectRecorder.Services;
@@ -17,11 +14,10 @@ namespace ProjectRecorder.Views;
 
 /// <summary>
 /// 快捷路径视图：通用模块含文件夹 + 网址，项目内仅文件夹。
-/// 文件夹单击用资源管理器打开；网址单击复制（失败弹手动复制窗口）。
+/// 文件夹单击用资源管理器打开；网址单击打开手动复制窗口（不再自动写入剪贴板）。
 /// </summary>
 public partial class ShortcutView : UserControl
 {
-    private readonly DispatcherTimer _hintTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly List<PathShortcut> _shortcuts = new();
     private DataService? _data;
     private InactivityMonitor? _monitor;
@@ -30,11 +26,6 @@ public partial class ShortcutView : UserControl
     public ShortcutView()
     {
         InitializeComponent();
-        _hintTimer.Tick += (_, _) =>
-        {
-            _hintTimer.Stop();
-            RestoreHint();
-        };
     }
 
     /// <summary>由 MainWindow 在构造后注入会话依赖。</summary>
@@ -85,7 +76,7 @@ public partial class ShortcutView : UserControl
 
     private string HintDefault()
         => _project == DataStore.FixedMachineProject
-            ? "文件夹：单击用资源管理器打开；网址：单击复制到剪贴板（不打开浏览器）"
+            ? "文件夹：单击用资源管理器打开；网址：单击打开手动复制窗口（全选后按 Ctrl+C）"
             : "文件夹：单击用资源管理器打开";
 
     // 统一添加入口：弹窗内选名称 + 类型（项目内只能选文件夹）
@@ -147,47 +138,27 @@ public partial class ShortcutView : UserControl
         }
     }
 
-    // 网址卡片：单击复制到剪贴板（不打开浏览器）
+    // 网址卡片：单击打开手动复制窗口（不自动写剪贴板、不打开浏览器）
     private void ShortcutUrl_Click(object sender, MouseButtonEventArgs e)
     {
         _monitor?.NotifyActivity();
-        if ((sender as FrameworkElement)?.DataContext is PathShortcut sc) CopyUrl(sc);
+        if ((sender as FrameworkElement)?.DataContext is PathShortcut sc) OpenManualCopy(sc);
     }
 
-    private void MenuCopyUrlShortcut_Click(object sender, RoutedEventArgs e)
+    private void MenuManualCopyUrlShortcut_Click(object sender, RoutedEventArgs e)
     {
         _monitor?.NotifyActivity();
-        if (LstUrlShortcuts.SelectedItem is PathShortcut sc) CopyUrl(sc);
+        if (LstUrlShortcuts.SelectedItem is PathShortcut sc) OpenManualCopy(sc);
     }
 
-    private void CopyUrl(PathShortcut shortcut)
+    /// <summary>打开手动复制窗口：不自动写剪贴板，由用户全选后按 Ctrl+C 复制。</summary>
+    private void OpenManualCopy(PathShortcut shortcut)
     {
         string url = (shortcut.FolderPath ?? string.Empty).Trim();
         if (url.Length == 0) return;
-        if (ClipboardHelper.Copy(url))
-        {
-            ShowHint($"已复制网址：{url}");
-            return;
-        }
 
-        // 失败不重试：直接打开手动复制弹窗
         new ManualCopyDialog(url, _monitor!) { Owner = Window.GetWindow(this) }.ShowDialog();
         _monitor?.NotifyActivity();
-    }
-
-    // 复制反馈：标题行临时显示 2 秒
-    private void ShowHint(string text)
-    {
-        TxtShortcutHint.Text = text;
-        TxtShortcutHint.Foreground = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB));
-        _hintTimer.Stop();
-        _hintTimer.Start();
-    }
-
-    private void RestoreHint()
-    {
-        TxtShortcutHint.Text = HintDefault();
-        TxtShortcutHint.Foreground = new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
     }
 
     private void LstShortcuts_RightButtonDown(object sender, MouseButtonEventArgs e)
