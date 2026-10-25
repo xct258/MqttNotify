@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
-using System.Text;
 using ProjectRecorderLite.Models;
 
 namespace ProjectRecorderLite.Services;
@@ -18,28 +17,21 @@ public sealed class LiteData
 }
 
 /// <summary>
-/// 明文 JSON 数据存储（无登录、无加密）。
-/// 文件位置：exe 同级 Data/data.json。
+/// Lite 版明文 JSON 数据存储（无登录、无加密）。
+/// 数据直接追加在 exe 末尾，保存后由后台脚本在程序退出时写回 exe。
 /// 增删改在内存中完成并立即落盘，失败时回滚内存改动。
 /// </summary>
 public static class LiteStore
 {
-    public const string DataFolderName = "Data";
-    public const string DataFileName = "data.json";
-
     /// <summary>固定「通用」模块：不属于项目列表，网址快捷路径只能放在这里。</summary>
     public const string GeneralProject = "通用";
 
     private static LiteData? _data;
 
-    public static string AppDir => AppDomain.CurrentDomain.BaseDirectory;
-    public static string DataDir => Path.Combine(AppDir, DataFolderName);
-    public static string DataPath => Path.Combine(DataDir, DataFileName);
-
     /// <summary>最近一次保存失败的原因；成功后清空。</summary>
     public static string? LastError { get; private set; }
 
-    /// <summary>启动时数据文件损坏等提示（只用于第一次加载）。</summary>
+    /// <summary>启动时数据读取提示（只用于第一次加载）。</summary>
     public static string? StartupWarning { get; private set; }
 
     private static LiteData Data => _data ??= LoadFromDisk();
@@ -158,31 +150,36 @@ public static class LiteStore
 
     private static void SaveCore()
     {
-        Directory.CreateDirectory(DataDir);
-
         var serializer = new DataContractJsonSerializer(typeof(LiteData));
         using var ms = new MemoryStream();
         serializer.WriteObject(ms, Data);
-        string json = Encoding.UTF8.GetString(ms.ToArray());
+        byte[] json = ms.ToArray();
 
-        // 先写临时文件再覆盖，尽量避免中途崩溃把原文件写坏
-        string tmp = DataPath + ".tmp";
-        File.WriteAllText(tmp, json, new UTF8Encoding(false));
-        File.Copy(tmp, DataPath, overwrite: true);
-        try { File.Delete(tmp); } catch { /* 临时文件删不掉不影响数据 */ }
+        if (!ExeDataStore.SavePayload(json, out string error))
+            throw new InvalidOperationException(error);
     }
 
     private static LiteData LoadFromDisk()
     {
-        if (!File.Exists(DataPath))
+        byte[]? json = ExeDataStore.LoadPayload(out string? warning);
+        if (!string.IsNullOrEmpty(warning))
+            StartupWarning = warning;
+
+        if (json == null || json.Length == 0)
             return new LiteData();
 
         try
         {
             var serializer = new DataContractJsonSerializer(typeof(LiteData));
-            using var fs = File.OpenRead(DataPath);
-            var data = serializer.ReadObject(fs) as LiteData ?? new LiteData();
+            using var ms = new MemoryStream(json);
+            var data = serializer.ReadObject(ms) as LiteData ?? new LiteData();
             Normalize(data);
+
+            // 旧版 Data/data.json：读入后立即生成 pending，退出时自动写进 exe
+            if (ExeDataStore.UsedLegacyFile)
+                TryMigrateLegacyToExe(data);
+
+            // 如果本次是从 .pending 读到的，App.OnExit 会在退出时把它写回 exe
             return data;
         }
         catch (Exception ex)
@@ -190,17 +187,38 @@ public static class LiteStore
             // 损坏时先备份，避免用户数据被无声覆盖
             try
             {
-                Directory.CreateDirectory(DataDir);
-                string backup = Path.Combine(DataDir, $"data.corrupt-{DateTime.Now:yyyyMMddHHmmss}.json");
-                File.Copy(DataPath, backup, overwrite: true);
+                string backup = ExeDataStore.ExePath
+                                + $".corrupt-{DateTime.Now:yyyyMMddHHmmss}.json";
+                File.WriteAllBytes(backup, json);
             }
             catch
             {
                 // 备份失败不阻断启动
             }
 
-            StartupWarning = "数据文件读取失败，已按空数据启动（原文件已尝试备份）。\n" + ex.Message;
+            // 损坏的 pending 不能再覆盖 exe
+            if (ExeDataStore.LoadedFromPending)
+                ExeDataStore.DiscardPending();
+
+            StartupWarning = "exe 内的数据读取失败，已按空数据启动（原数据已尝试备份）。\n" + ex.Message;
             return new LiteData();
+        }
+    }
+
+    private static void TryMigrateLegacyToExe(LiteData data)
+    {
+        try
+        {
+            var serializer = new DataContractJsonSerializer(typeof(LiteData));
+            using var ms = new MemoryStream();
+            serializer.WriteObject(ms, data);
+
+            if (!ExeDataStore.SavePayload(ms.ToArray(), out string error))
+                StartupWarning = (StartupWarning ?? string.Empty) + "\n旧数据写入 exe 失败：" + error;
+        }
+        catch (Exception ex)
+        {
+            StartupWarning = (StartupWarning ?? string.Empty) + "\n旧数据写入 exe 失败：" + ex.Message;
         }
     }
 

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using ProjectRecorderLite.Services;
 
 namespace ProjectRecorderLite;
 
@@ -16,17 +17,18 @@ namespace ProjectRecorderLite;
 /// </summary>
 public partial class App : Application
 {
+    // 日志写到临时目录，避免在 exe 旁边留下文件（Lite 版数据在 exe 内部，保持单文件）
     private static string LogPath
     {
         get
         {
             try
             {
-                return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "error.log");
+                return Path.Combine(Path.GetTempPath(), "小工具Lite-error.log");
             }
             catch
             {
-                return Path.Combine(Path.GetTempPath(), "ProjectRecorderLite_error.log");
+                return "小工具Lite-error.log";
             }
         }
     }
@@ -84,6 +86,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // 退出前启动替换脚本：等本进程结束后把 .pending 覆盖回 exe
+        try { ExeDataStore.EnsureSwapHelper(); } catch { /* 写回失败不阻断退出 */ }
+
         try
         {
             _singleInstanceMutex?.ReleaseMutex();
@@ -151,7 +156,7 @@ public partial class App : Application
 
         try
         {
-            MessageBox.Show($"程序出现错误（{where}）：\n{ex?.Message}\n\n详细信息已写入 error.log（exe 同级目录）。",
+            MessageBox.Show($"程序出现错误（{where}）：\n{ex?.Message}\n\n详细信息已写入：\n{LogPath}",
                 "错误", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         catch

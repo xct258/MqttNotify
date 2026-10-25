@@ -13,5 +13,12 @@ obj/
 publish/*.pdb
 publish/*.config
 
-# 程序运行时在 exe 同级生成的数据目录（明文 JSON，不进仓库）
+# 旧版运行时数据目录（新版数据在 exe 内部）
 Data/
+
+# 新版运行时临时文件（回写 exe 用，不进仓库）
+*.pending
+*.pending.tmp
+*.pending.bad-*
+*.corrupt-*.json
+error.log

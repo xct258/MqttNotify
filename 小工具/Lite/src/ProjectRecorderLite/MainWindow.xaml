@@ -55,8 +55,13 @@
                     </ListBox>
                 </Grid>
 
-                <Button x:Name="BtnAddProject" Grid.Row="2" Content="＋ 添加项目" Height="34" Margin="10"
-                        Style="{StaticResource BtnGhost}" Click="BtnAdd_Click"/>
+                <StackPanel Grid.Row="2" Margin="10">
+                    <Button x:Name="BtnAddProject" Content="＋ 添加项目" Height="34"
+                            Style="{StaticResource BtnGhost}" Click="BtnAdd_Click"/>
+                    <TextBlock Text="数据保存在 exe 内，退出后写回" FontSize="11"
+                               Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,7,0,0"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
             </Grid>
         </Border>
 

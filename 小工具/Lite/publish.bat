@@ -7,5 +7,5 @@ del /q publish\*.pdb 2>nul
 del /q publish\*.config 2>nul
 echo.
 echo 发布完成：publish\小工具Lite.exe
-echo 数据文件：exe 同级 Data\data.json（明文 JSON，无加密）
+echo 数据：直接写入 exe 内部（明文 JSON，单文件）
 pause

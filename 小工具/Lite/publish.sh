@@ -10,3 +10,4 @@ dotnet publish src/ProjectRecorderLite/ProjectRecorderLite.csproj -c Release -o 
 rm -f publish/*.config publish/*.pdb
 echo
 echo "发布完成：publish/小工具Lite.exe"
+echo "数据：直接写入 exe 内部（明文 JSON，单文件）"

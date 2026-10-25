@@ -10,7 +10,7 @@
   - 文件夹：浏览选择，单击用资源管理器打开
   - 网址：自动补 `https://`，单击打开手动复制窗口（不会自动写入剪贴板）
 
-数据以**明文 JSON** 保存在 exe 同级 `Data/data.json`，不再加密、无需密码。
+数据以**明文 JSON** 直接追加在 **exe 末尾**，单文件；不再加密、无需密码。保存后正常退出程序，数据会写回 exe，复制 exe 即连数据一起复制。
 
 ## 1. 运行环境
 
@@ -45,16 +45,24 @@ chmod +x publish.sh && ./publish.sh
 3. 选中普通项目后，右侧只能添加文件夹（**网址只能在「通用」中添加**）。
 4. 文件夹 / 网址卡片右键可删除（网址可右键「手动复制网址」）。
 5. 左侧项目右键可 `上移` / `下移` / `删除该项目`；「通用」是固定模块，不能上移/删除。
+6. 数据保存在 exe 内；改完请**正常关闭程序**，退出后才会写回 exe。
 
-## 4. 数据
+## 4. 数据（单文件）
 
-```
-Data/data.json      # 明文 JSON：{ "Projects": [...], "Shortcuts": [...] }
-```
+Lite 版不生成 `Data` 文件夹，数据以明文 JSON 直接追加在 `小工具Lite.exe` 末尾。
 
-- 每次增删改立即落盘；写入采用「临时文件 + 覆盖」，尽量避免中断导致文件损坏。
-- 若 `data.json` 损坏，启动时会自动备份为 `Data/data.corrupt-<时间>.json` 并以空数据启动。
-- 窗口尺寸记忆在注册表 `HKCU\Software\ProjectRecorderLite`（与数据文件无关）。
+- 每次增删改都会保存：先生成 `小工具Lite.exe.pending`，程序退出后由后台脚本覆盖回 exe。
+- 正常退出后目录里只剩 `小工具Lite.exe`；异常结束时会留下 `.pending`，下次启动会自动读取并重试写回。
+- 复制 / 发给别人时，复制 exe 即可，数据就在里面。
+- 请先把 exe 解压 / 复制到固定文件夹再运行；直接在压缩包里双击时，临时目录可能被清理，数据会丢。
+- **升级 / 替换 exe 会覆盖里面的数据；升级前先备份旧 exe。**
+- 旧版 `Data/data.json` 会自动读取一次；首次保存后数据进入 exe，旧 `Data` 文件夹可自行删除。
+- 数据损坏时会在 exe 同级生成 `.corrupt-<时间>.json` 备份，并以空数据启动。
+- 运行中的 exe 被系统锁定，**保存后请正常退出程序**再复制 exe。
+- 杀毒软件可能对「自修改 exe」报警；若保存失败，请把 exe 放到有写权限的目录。
+- 每次保存后 exe 的哈希会变化，SmartScreen / 杀软可能重新提示，这是单文件存数据的正常现象。
+- 窗口尺寸记忆在注册表 `HKCU\Software\ProjectRecorderLite`（与数据无关）。
+- 错误日志写到 `%TEMP%\小工具Lite-error.log`，不在 exe 旁边留文件。
 
 ## 5. 目录结构
 
@@ -69,7 +77,8 @@ Lite/
     PathShortcutDialog.xaml(.cs)   添加快捷路径（通用可选文件夹/网址，项目仅文件夹）
     ManualCopyDialog.xaml(.cs)     手动复制窗口（已全选，按 Ctrl+C 复制）
     Models/PathShortcut.cs         快捷路径模型
-    Services/LiteStore.cs          明文 JSON 存储（项目 + 快捷路径）
+    Services/ExeDataStore.cs       明文 JSON 追加进 exe / pending 写回
+    Services/LiteStore.cs          项目 + 快捷路径业务存储
     Views/ShortcutView.xaml(.cs)   快捷路径面板
     Helpers/VisualTreeHelpers.cs   视觉树辅助
 ```
@@ -80,6 +89,7 @@ Lite/
 |---|---|---|
 | 登录 / 密码 | 有 | 无 |
 | AES 加密存储 | 有 | 无（明文 JSON） |
+| 数据位置 | Data/data.json | exe 末尾（单文件） |
 | 无操作自动退出 | 有（120 秒） | 无 |
 | 添加项目 | 有 | 有 |
 | 快捷路径 | 有（通用模块含网址，项目仅文件夹） | 有（通用含文件夹 + 网址，项目仅文件夹） |
