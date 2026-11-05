@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import java.util.UUID
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "mqtt_settings")
 
@@ -22,7 +23,10 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * 服务与 UI 共用同一份配置：服务 collect [settings] 后按变化重连，
  * UI 保存后无需手动通知服务。
  */
-class SettingsRepository private constructor(private val dataStore: DataStore<Preferences>) {
+class SettingsRepository private constructor(
+    private val dataStore: DataStore<Preferences>,
+    private val clientIdSuffix: String,
+) {
 
     val settings: Flow<AppSettings> = dataStore.data
         .catch { e ->
@@ -32,7 +36,7 @@ class SettingsRepository private constructor(private val dataStore: DataStore<Pr
         .map { prefs ->
             // 开发期不做迁移：旧版本的配置直接忽略，回落到当前默认值。
             if ((prefs[KEY_CONFIG_VERSION] ?: 0) != AppSettings.CONFIG_VERSION) {
-                AppSettings()
+                AppSettings(clientIdSuffix = clientIdSuffix)
             } else {
                 AppSettings(
                     host = prefs[KEY_HOST] ?: AppSettings.DEFAULT_HOST,
@@ -40,6 +44,7 @@ class SettingsRepository private constructor(private val dataStore: DataStore<Pr
                     topicBase = prefs[KEY_TOPIC] ?: AppSettings.DEFAULT_TOPIC,
                     serverName = prefs[KEY_SERVER] ?: AppSettings.DEFAULT_SERVER,
                     clientId = prefs[KEY_CLIENT_ID] ?: "",
+                    clientIdSuffix = clientIdSuffix,
                     autoStartOnBoot = prefs[KEY_AUTO_START] ?: true,
                     transport = prefs[KEY_TRANSPORT]
                         ?.let { name -> runCatching { MqttTransport.valueOf(name) }.getOrNull() }
@@ -72,9 +77,26 @@ class SettingsRepository private constructor(private val dataStore: DataStore<Pr
 
         fun get(context: Context): SettingsRepository =
             instance ?: synchronized(this) {
-                instance ?: SettingsRepository(context.applicationContext.settingsDataStore)
-                    .also { instance = it }
+                instance ?: SettingsRepository(
+                    context.applicationContext.settingsDataStore,
+                    installClientIdSuffix(context.applicationContext),
+                ).also { instance = it }
             }
+
+        /** 随机后缀保存在独立的 SharedPreferences 中：清空 App 数据/重装才会重新生成。 */
+        private fun installClientIdSuffix(context: Context): String {
+            val prefs = context.getSharedPreferences(IDENTITY_PREFS, Context.MODE_PRIVATE)
+            prefs.getString(KEY_IDENTITY_SUFFIX, null)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { return it }
+
+            val suffix = UUID.randomUUID().toString().replace("-", "").take(8)
+            prefs.edit().putString(KEY_IDENTITY_SUFFIX, suffix).apply()
+            return suffix
+        }
+
+        private const val IDENTITY_PREFS = "mqtt_identity"
+        private const val KEY_IDENTITY_SUFFIX = "client_id_suffix"
 
         private val KEY_CONFIG_VERSION = intPreferencesKey("config_version")
         private val KEY_HOST = stringPreferencesKey("host")

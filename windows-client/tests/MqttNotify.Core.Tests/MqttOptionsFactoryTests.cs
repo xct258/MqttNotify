@@ -156,15 +156,6 @@ public class MqttOptionsFactoryTests
     }
 
     [Fact]
-    public void 自动生成的ClientId带win前缀()
-    {
-        var clientId = MqttOptionsFactory.NewClientId();
-
-        Assert.StartsWith("win-", clientId, StringComparison.Ordinal);
-        Assert.Equal(12, clientId.Length);
-    }
-
-    [Fact]
     public void 空ClientId会被拒绝()
     {
         Assert.Throws<ArgumentException>(() => MqttOptionsFactory.Build(new AppSettings { Host = "h" }, "  "));

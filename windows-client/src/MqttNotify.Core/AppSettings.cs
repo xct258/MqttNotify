@@ -7,7 +7,7 @@ namespace MqttNotify.Core;
 ///   <item><see cref="Host"/> / <see cref="Port"/> / <see cref="Transport"/>：broker 地址与传输方式；</item>
 ///   <item><see cref="TopicBase"/>：下行主题的 base，默认 <c>taskops/todo</c>；实际订阅 <see cref="SubscribeTopic"/>；</item>
 ///   <item><see cref="ServerName"/>：来源服务名（如 taskops），预留给后续 REST 补拉；</item>
-///   <item><see cref="ClientId"/>：MQTT Client ID，留空则启动时自动生成；同 ID 重复连接会顶掉旧连接；</item>
+///   <item><see cref="ClientId"/>：自定义 Client ID 前缀；最终 ID 为 <c>{前缀}-{固定随机后缀}</c>，留空前缀时为 <c>windows-xxxxxxxx</c>；</item>
 ///   <item><see cref="WsPath"/>：WS/WSS 的 serverPath（默认 <c>/mqtt</c>）；</item>
 ///   <item><see cref="AllowInsecureTls"/>：WSS 下跳过证书链与主机名校验（仅内网自签证书用）。</item>
 /// </list>
@@ -15,7 +15,7 @@ namespace MqttNotify.Core;
 public sealed record AppSettings
 {
     /// <summary>配置格式版本。开发期不做迁移：版本不一致时直接回落到默认配置。</summary>
-    public const int CurrentConfigVersion = 1;
+    public const int CurrentConfigVersion = 2;
 
     public const string DefaultHost = "push-server.o1-1.xct258.top";
     public const int DefaultPort = 443;
@@ -34,7 +34,24 @@ public sealed record AppSettings
 
     public string ServerName { get; init; } = DefaultServer;
 
+    /// <summary>用户自定义的 Client ID 前缀；留空时使用 <c>windows</c>。</summary>
     public string ClientId { get; init; } = string.Empty;
+
+    /// <summary>安装时生成并持久化的随机后缀，清空配置/重装后才会变化。</summary>
+    public string ClientIdSuffix { get; init; } = string.Empty;
+
+    /// <summary>最终 MQTT Client ID：<c>{自定义或 windows}-{固定随机后缀}</c>。</summary>
+    public string EffectiveClientId
+    {
+        get
+        {
+            var prefix = string.IsNullOrWhiteSpace(ClientId) ? "windows" : ClientId.Trim();
+            var suffix = ClientIdSuffix.Trim();
+            return suffix.Length == 0 ? prefix : $"{prefix}-{suffix}";
+        }
+    }
+
+    public static string NewClientIdSuffix() => Guid.NewGuid().ToString("N")[..8];
 
     /// <summary>开机自启（写注册表 Run 项）。</summary>
     public bool AutoStartOnBoot { get; init; } = true;
@@ -116,6 +133,7 @@ public sealed record AppSettings
         TopicBase = NormalizeTopicBase(TopicBase),
         ServerName = ServerName.Trim(),
         ClientId = ClientId.Trim(),
+        ClientIdSuffix = string.IsNullOrWhiteSpace(ClientIdSuffix) ? NewClientIdSuffix() : ClientIdSuffix.Trim(),
         WsPath = EffectiveWsPath,
         AllowInsecureTls = AllowInsecureTls && Transport.IsTls(),
     };

@@ -49,6 +49,18 @@ class AppSettingsTest {
     }
 
     @Test
+    fun `客户端 ID 由自定义前缀和固定随机后缀组成`() {
+        assertEquals(
+            "android-abcd1234",
+            AppSettings(clientIdSuffix = "abcd1234").effectiveClientId,
+        )
+        assertEquals(
+            "my-phone-abcd1234",
+            AppSettings(clientId = " my-phone ", clientIdSuffix = "abcd1234").effectiveClientId,
+        )
+    }
+
+    @Test
     fun `host 为空时配置无效`() {
         assertFalse(AppSettings(host = "").isValid)
         assertTrue(AppSettings(host = "192.168.1.10").isValid)

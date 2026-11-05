@@ -7,7 +7,7 @@ package com.xct258.mqttnotify.data
  *  - [host] / [port] / [transport]：broker 地址与传输方式；
  *  - [topicBase]：下行主题的 base，默认 taskops/todo；实际订阅 [subscribeTopic]；
  *  - [serverName]：来源服务名（如 taskops），用于后续 REST 补拉，不影响订阅；
- *  - [clientId]：MQTT Client ID，留空则启动时自动生成，同 ID 重复连接会顶掉旧连接；
+ *  - [clientId]：自定义 Client ID 前缀；最终 ID 为 `{前缀}-{固定随机后缀}`，留空则为 `android-xxxxxxxx`；
  *  - [wsPath]：WS/WSS 的 serverPath（默认 /mqtt）；
  *  - [allowInsecureTls]：WSS 下跳过证书链校验（仅内网自签证书用）。
  */
@@ -16,7 +16,10 @@ data class AppSettings(
     val port: Int = DEFAULT_PORT,
     val topicBase: String = DEFAULT_TOPIC,
     val serverName: String = DEFAULT_SERVER,
+    /** 用户自定义的 Client ID 前缀；留空时使用 `android`。 */
     val clientId: String = "",
+    /** 安装时生成并持久化的随机后缀，清空数据/重装后才会变化。 */
+    val clientIdSuffix: String = "",
     val autoStartOnBoot: Boolean = true,
     /**
      * 默认走公网 WSS：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
@@ -39,6 +42,13 @@ data class AppSettings(
             }
         }
 
+    /** 最终 MQTT Client ID：`{自定义或 android}-{固定随机后缀}`。 */
+    val effectiveClientId: String
+        get() {
+            val prefix = clientId.trim().ifBlank { "android" }
+            return if (clientIdSuffix.isBlank()) prefix else "$prefix-${clientIdSuffix.trim()}"
+        }
+
     /** 是否已配置到可连接的程度。 */
     val isValid: Boolean
         get() = host.isNotBlank() && port in 1..65535 && topicBase.isNotBlank()
@@ -58,7 +68,7 @@ data class AppSettings(
     )
 
     companion object {
-        const val CONFIG_VERSION = 1
+        const val CONFIG_VERSION = 2
         const val DEFAULT_HOST = "push-server.o1-1.xct258.top"
         const val DEFAULT_PORT = 443
         const val DEFAULT_TOPIC = "taskops/todo"

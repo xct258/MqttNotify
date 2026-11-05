@@ -39,6 +39,7 @@ public sealed class MainViewModel : ObservableObject
     private string _topicBase = string.Empty;
     private string _serverName = string.Empty;
     private string _clientId = string.Empty;
+    private string _clientIdSuffix = string.Empty;
     private string _wsPath = AppSettings.DefaultWsPath;
     private TransportOption _selectedTransport = null!;
     private bool _allowInsecureTls;
@@ -274,7 +275,8 @@ public sealed class MainViewModel : ObservableObject
 
     public async Task SaveAsync()
     {
-        var settings = BuildSettings();
+        var settings = BuildSettings().Normalized();
+        _clientIdSuffix = settings.ClientIdSuffix;
         _store.Save(settings);
 
         ApplyAutostart(settings.AutoStartOnBoot);
@@ -319,6 +321,7 @@ public sealed class MainViewModel : ObservableObject
         _topicBase = settings.TopicBase;
         _serverName = settings.ServerName;
         _clientId = settings.ClientId;
+        _clientIdSuffix = settings.ClientIdSuffix;
         _wsPath = settings.EffectiveWsPath;
         _allowInsecureTls = settings.AllowInsecureTls;
         _autoStartOnBoot = settings.AutoStartOnBoot;
@@ -345,6 +348,7 @@ public sealed class MainViewModel : ObservableObject
         TopicBase = TopicBase,
         ServerName = ServerName,
         ClientId = ClientId,
+        ClientIdSuffix = _clientIdSuffix,
         AutoStartOnBoot = AutoStartOnBoot,
         MinimizeToTrayOnClose = MinimizeToTrayOnClose,
         Transport = SelectedTransport.Value,

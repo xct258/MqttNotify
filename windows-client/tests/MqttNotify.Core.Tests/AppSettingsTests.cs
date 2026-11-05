@@ -44,6 +44,27 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void 客户端ID由自定义前缀和固定随机后缀组成()
+    {
+        Assert.Equal(
+            "windows-abcd1234",
+            new AppSettings { ClientIdSuffix = "abcd1234" }.EffectiveClientId);
+        Assert.Equal(
+            "my-pc-abcd1234",
+            new AppSettings { ClientId = " my-pc ", ClientIdSuffix = "abcd1234" }.EffectiveClientId);
+    }
+
+    [Fact]
+    public void normalized会生成并保留固定随机后缀()
+    {
+        var settings = new AppSettings { ClientIdSuffix = " abcd1234 " }.Normalized();
+        Assert.Equal("abcd1234", settings.ClientIdSuffix);
+
+        var normalizedAgain = settings.Normalized();
+        Assert.Equal(settings.ClientIdSuffix, normalizedAgain.ClientIdSuffix);
+    }
+
+    [Fact]
     public void host为空时配置无效()
     {
         Assert.False(new AppSettings { Host = string.Empty }.IsValid);

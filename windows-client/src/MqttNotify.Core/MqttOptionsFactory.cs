@@ -72,7 +72,4 @@ public static class MqttOptionsFactory
 
         return builder.Build();
     }
-
-    /// <summary>生成默认 Client ID，与手机端同构：<c>win-xxxxxxxx</c>。</summary>
-    public static string NewClientId() => "win-" + Guid.NewGuid().ToString("N")[..8];
 }

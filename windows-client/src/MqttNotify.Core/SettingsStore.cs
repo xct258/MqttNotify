@@ -47,7 +47,9 @@ public sealed class JsonSettingsStore : ISettingsStore
         {
             if (!File.Exists(_filePath))
             {
-                return new AppSettings();
+                var defaults = new AppSettings().Normalized();
+                Save(defaults);
+                return defaults;
             }
 
             var json = File.ReadAllText(_filePath, Encoding.UTF8);
@@ -59,10 +61,19 @@ public sealed class JsonSettingsStore : ISettingsStore
                 !version.TryGetInt32(out var value) ||
                 value != AppSettings.CurrentConfigVersion)
             {
-                return new AppSettings();
+                var defaults = new AppSettings().Normalized();
+                Save(defaults);
+                return defaults;
             }
 
-            return document.RootElement.Deserialize<AppSettings>(Options) ?? new AppSettings();
+            var settings = document.RootElement.Deserialize<AppSettings>(Options) ?? new AppSettings();
+            if (string.IsNullOrWhiteSpace(settings.ClientIdSuffix))
+            {
+                // 第一次升级到「固定随机后缀」时生成一次并写回，之后重启保持不变。
+                settings = settings.Normalized();
+                Save(settings);
+            }
+            return settings;
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {

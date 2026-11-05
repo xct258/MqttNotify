@@ -42,7 +42,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.HostnameVerifier
@@ -154,7 +153,7 @@ class MqttForegroundService : Service() {
 
     private suspend fun establish(settings: AppSettings) {
         val gen = generation
-        val clientId = settings.clientId.ifBlank { "android-" + UUID.randomUUID().toString().take(8) }
+        val clientId = settings.effectiveClientId
         activeClientId = clientId
 
         // 展示用地址（同时覆盖 TCP/WS/WSS），状态栏与日志都用它，便于排查

@@ -18,11 +18,12 @@ public class SettingsStoreTests
         {
             File.WriteAllText(path, """
                 {
-                  "configVersion": 1,
+                  "configVersion": 2,
                   "host": "192.168.1.10",
                   "port": 9001,
                   "topicBase": "taskops/todo/#",
-                  "transport": "Ws"
+                  "transport": "Ws",
+                  "clientIdSuffix": "abcd1234"
                 }
                 """);
 
@@ -33,6 +34,8 @@ public class SettingsStoreTests
             Assert.Equal("taskops/todo/#", settings.TopicBase);
             Assert.Equal("taskops/todo/#", settings.SubscribeTopic);
             Assert.Equal(MqttTransport.Ws, settings.Transport);
+            Assert.Equal("abcd1234", settings.ClientIdSuffix);
+            Assert.Equal("windows-abcd1234", settings.EffectiveClientId);
         }
         finally
         {
@@ -56,12 +59,14 @@ public class SettingsStoreTests
             });
 
             var json = File.ReadAllText(path);
-            Assert.Contains("\"configVersion\": 1", json);
+            Assert.Contains("\"configVersion\": 2", json);
             Assert.Contains("\"host\"", json);
+            Assert.Contains("\"clientIdSuffix\"", json);
             Assert.DoesNotContain("\"Host\"", json);
 
             var loaded = store.Load();
             Assert.Equal("192.168.1.10", loaded.Host);
+            Assert.False(string.IsNullOrWhiteSpace(loaded.ClientIdSuffix));
             Assert.Equal("a/b", loaded.TopicBase);
             Assert.Equal("a/b/#", loaded.SubscribeTopic);
             Assert.Equal(MqttTransport.Wss, loaded.Transport);

@@ -34,8 +34,8 @@
     <string name="ui_topic_hint">例如 taskops/todo</string>
     <string name="ui_server_name">服务器名称</string>
     <string name="ui_server_name_hint">例如 taskops</string>
-    <string name="ui_client_id">Client ID（留空自动生成）</string>
-    <string name="ui_client_id_hint">留空则以 android-xxxx 自动生成</string>
+    <string name="ui_client_id">Client ID 前缀（可留空）</string>
+    <string name="ui_client_id_hint">最终 ID = 前缀-固定随机串；留空则为 android-xxxxxxxx</string>
     <string name="ui_auto_start">开机自动启动</string>
     <string name="ui_save">保存</string>
     <string name="ui_saved">设置已保存</string>

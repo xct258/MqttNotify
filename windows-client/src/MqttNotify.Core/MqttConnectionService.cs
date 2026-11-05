@@ -139,9 +139,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
             settings.Port,
             settings.EffectiveWsPath);
 
-        var clientId = string.IsNullOrWhiteSpace(settings.ClientId)
-            ? MqttOptionsFactory.NewClientId()
-            : settings.ClientId;
+        var clientId = settings.EffectiveClientId;
 
         var options = MqttOptionsFactory.Build(settings, clientId);
         var backoff = _initialBackoff;

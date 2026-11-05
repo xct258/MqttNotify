@@ -34,6 +34,7 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 | payload | 明文 `【待办提醒】{title}\n{message}` |
 | 订阅参数 | QoS 1、`retained = false`、clean session、KeepAlive 60s、匿名（无账号密码） |
 | 在线状态 | 连接后向 `$presence/clients/{client_id}` 发布 retained JSON；30s 心跳，Will 标记离线 |
+| Client ID | `{自定义前缀或 windows/android}-{安装期固定随机 8 位}`；清空数据/重装后才会变化 |
 
 解析口径以两端的 `MqttMessageParser` 为准（Android 为 `.kt`，Windows 为 `.cs`），
 两边是同名类、同名测试用例，改一处必须改另一处。

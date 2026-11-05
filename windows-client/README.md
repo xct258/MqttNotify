@@ -80,14 +80,15 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `configVersion` | `1` | 配置格式版本；版本不一致会直接重置为默认配置 |
+| `configVersion` | `2` | 配置格式版本；版本不一致会直接重置为默认配置 |
 | `host` | `push-server.o1-1.xct258.top` | Broker 主机名或 IP |
 | `port` | `443` | 端口；切换传输方式时若仍是旧默认值会自动跟随 |
 | `transport` | `Wss` | `Tcp` / `Ws` / `Wss`；默认公网 WSS |
 | `wsPath` | `/mqtt` | WS/WSS 的路径；缺前导 `/` 会自动补 |
 | `topicBase` | `taskops/todo` | 下行主题 base，实际订阅 `{base}/#` |
 | `serverName` | `taskops` | 来源服务名（预留给后续 REST 补拉） |
-| `clientId` | 空 | 留空则每次启动随机生成 `win-xxxxxxxx`；**两台机器填相同 ID 会互相顶下线** |
+| `clientId` | 空 | 自定义 ID 前缀；最终 ID 为 `{前缀}-{固定随机后缀}`，留空则为 `windows-xxxxxxxx` |
+| `clientIdSuffix` | 首次启动生成 | 安装期固定随机后缀；清空配置/重装后才会变化 |
 | `allowInsecureTls` | `false` | 仅 WSS：跳过证书链与主机名校验（内网自签证书用） |
 | `autoStartOnBoot` | `true` | 写 `HKCU` 的 Run 项，不需要管理员权限 |
 | `minimizeToTrayOnClose` | `true` | 点 X 收进托盘而不是退出 |
