@@ -15,11 +15,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -74,6 +79,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     var wsPath by rememberSaveable { mutableStateOf(AppSettings.DEFAULT_WS_PATH) }
     var insecureTls by rememberSaveable { mutableStateOf(false) }
     var formLoaded by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -107,7 +113,37 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     val savedMessage = stringResource(R.string.ui_saved)
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        stringResource(
+                            if (showSettings) R.string.ui_settings_title else R.string.app_name
+                        )
+                    )
+                },
+                navigationIcon = {
+                    if (showSettings) {
+                        IconButton(onClick = { showSettings = false }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "返回",
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (!showSettings) {
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = stringResource(R.string.ui_settings_title),
+                            )
+                        }
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(
@@ -118,32 +154,29 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            StatusCard(status)
+            if (!showSettings) {
+                StatusCard(status)
 
-            if (running) {
-                Button(
-                    onClick = { viewModel.stopReceiving() },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.ui_stop)) }
-            } else {
-                Button(
-                    onClick = { viewModel.startReceiving() },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = settings.isValid,
-                ) { Text(stringResource(R.string.ui_start)) }
+                if (running) {
+                    Button(
+                        onClick = { viewModel.stopReceiving() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.ui_stop)) }
+                } else {
+                    Button(
+                        onClick = { viewModel.startReceiving() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = settings.isValid,
+                    ) { Text(stringResource(R.string.ui_start)) }
+                }
             }
 
-            Card {
+            if (showSettings) {
+                Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.ui_settings_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-
                     Text(
                         text = stringResource(R.string.ui_transport),
                         style = MaterialTheme.typography.labelLarge,
@@ -334,23 +367,24 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                     }
                 }
             }
+            }
 
-            HorizontalDivider()
-
-            Text(
-                text = stringResource(R.string.ui_recent),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-
-            if (alerts.isEmpty()) {
+            if (!showSettings) {
                 Text(
-                    text = stringResource(R.string.ui_no_alerts),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.ui_recent),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                 )
-            } else {
-                alerts.forEach { alert -> AlertCard(alert) }
+
+                if (alerts.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.ui_no_alerts),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    alerts.forEach { alert -> AlertCard(alert) }
+                }
             }
         }
     }
