@@ -19,7 +19,12 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        if (action != Intent.ACTION_BOOT_COMPLETED && action != QUICKBOOT_POWERON) return
+        if (action != Intent.ACTION_BOOT_COMPLETED &&
+            action != QUICKBOOT_POWERON &&
+            action != Intent.ACTION_MY_PACKAGE_REPLACED
+        ) {
+            return
+        }
 
         val pending = goAsync()
         val appContext = context.applicationContext

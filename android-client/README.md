@@ -28,8 +28,8 @@
 
 **下行消息**：payload 为拼好的纯文本 `【待办提醒】{title}\n{message}`；主题尾段即 `task_id`。
 
-**在线状态**：连接后向 `$presence/clients/{client_id}` 发布 retained 在线状态，30 秒心跳；
-异常退出由 MQTT Will 标记离线，供 push-server 管理页展示。
+**在线状态**：连接后向 `$presence/clients/{client_id}` 发布 retained 在线状态，60 秒心跳
+（QoS0、非 retained）；异常退出由 MQTT Will 标记离线，供 push-server 管理页展示。
 
 ```
 主题: taskops/todo/7
@@ -245,8 +245,11 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 
 ## 7. 已知限制
 
-- **Doze / 电池优化**：系统深度休眠时可能延迟网络。建议引导用户将 App 加入「不受电池优化」白名单；
-  首版未内置该引导。
+- **Doze / 电池优化**：系统深度休眠时可能延迟网络。设置页已提供「忽略电池优化」入口，
+  点击后跳到系统授权页；首次使用建议开启。
+- **划掉最近任务**：服务声明了 `stopWithTask=false`，并在 `onTaskRemoved` 里续拉前台服务，
+  从最近任务划掉 App 不会主动断开连接；点击 App 内的「停止接收」仍会停止。
+- **强制停止**：在系统设置里「强行停止」应用会终止服务，这是 Android 的限制，无法绕过。
 - **国产品牌后台限制**：部分 ROM 会清理后台，需手动在系统设置中允许自启动 / 后台运行。
 - **应用商店上架**：`specialUse` 前台服务类型需在 Play 商店声明用途；内网/自用分发不受影响。
 - **明文传输**：`TCP` / `WS` 均为明文内网匿名协议，**请勿把 broker 暴露到公网**；跨公网请用 `WSS`。

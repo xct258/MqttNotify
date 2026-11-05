@@ -30,8 +30,8 @@ public sealed class MqttConnectionService : IAsyncDisposable
     /// <summary>payload 无「【待办提醒】」前缀时使用的兜底标题。</summary>
     public const string DefaultAlertTitle = "新提醒";
 
-    /// <summary>在线状态心跳间隔；服务端超过 120 秒收不到心跳就视为离线。</summary>
-    public static TimeSpan PresenceHeartbeatInterval { get; } = TimeSpan.FromSeconds(30);
+    /// <summary>在线状态心跳间隔；服务端超过 180 秒收不到心跳就视为离线。</summary>
+    public static TimeSpan PresenceHeartbeatInterval { get; } = TimeSpan.FromSeconds(60);
 
     private readonly Func<IMqttClient> _clientFactory;
     private readonly TimeSpan _initialBackoff;
@@ -316,7 +316,15 @@ public sealed class MqttConnectionService : IAsyncDisposable
 
             try
             {
-                await PublishPresenceAsync(client, clientId, online: true, cancellationToken).ConfigureAwait(false);
+                // 心跳走 QoS0 + 非 retained：少一次 PUBACK，也避免反复写 retained。
+                // 首次上线和离线 Will 仍用 QoS1 + retained。
+                await PublishPresenceAsync(
+                    client,
+                    clientId,
+                    online: true,
+                    cancellationToken,
+                    qos: MqttQualityOfServiceLevel.AtMostOnce,
+                    retain: false).ConfigureAwait(false);
             }
             catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
@@ -329,13 +337,15 @@ public sealed class MqttConnectionService : IAsyncDisposable
         IMqttClient client,
         string clientId,
         bool online,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce,
+        bool retain = true)
     {
         var message = new MqttApplicationMessageBuilder()
             .WithTopic(MqttPresence.TopicFor(clientId))
             .WithPayload(MqttPresence.Payload(clientId, online))
-            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-            .WithRetainFlag(true)
+            .WithQualityOfServiceLevel(qos)
+            .WithRetainFlag(retain)
             .Build();
 
         await client.PublishAsync(message, cancellationToken).ConfigureAwait(false);

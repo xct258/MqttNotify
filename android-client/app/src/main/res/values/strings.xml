@@ -37,6 +37,10 @@
     <string name="ui_client_id">Client ID 前缀（可留空）</string>
     <string name="ui_client_id_hint">最终 ID = 前缀-固定随机串；留空则为 android-xxxxxxxx</string>
     <string name="ui_auto_start">开机自动启动</string>
+    <string name="ui_battery_optimization">忽略电池优化</string>
+    <string name="ui_battery_optimization_hint">减少系统在后台清理长连接；国产系统还需允许自启动/后台运行</string>
+    <string name="ui_battery_optimization_action">去设置</string>
+    <string name="ui_battery_optimization_done">已开启</string>
     <string name="ui_save">保存</string>
     <string name="ui_saved">设置已保存</string>
     <string name="ui_recent">最近提醒（仅本次运行，不落盘）</string>

@@ -100,6 +100,18 @@ class MqttForegroundService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // 部分系统会把「从最近任务划掉」当成停止 App；这里主动续上前台服务。
+        // 用户手动点「停止接收」走 ACTION_STOP，不会触发这里。
+        Log.i(TAG, "任务被移除，保持 MQTT 前台服务")
+        runCatching {
+            val restart = Intent(applicationContext, MqttForegroundService::class.java)
+                .setAction(ACTION_START)
+            ContextCompat.startForegroundService(applicationContext, restart)
+        }.onFailure { Log.w(TAG, "任务移除后重启服务失败", it) }
+    }
+
     override fun onDestroy() {
         scope.cancel()
         runBlocking { withTimeoutOrNull(1_000L) { teardownClient() } }
@@ -234,6 +246,7 @@ class MqttForegroundService : Service() {
             .send()
             .await()
 
+        // 首次上线用 QoS1 + retained，保证后端启动后也能立刻看到；后续心跳走 QoS0 非 retained。
         runCatching { publishPresence(newClient, clientId, online = true) }
 
         // HiveMQ 自动重连期间 heartbeat 会继续跑，重连后自动把状态刷回在线。
@@ -242,7 +255,15 @@ class MqttForegroundService : Service() {
             while (isActive) {
                 delay(PRESENCE_HEARTBEAT_MS)
                 val current = client ?: break
-                runCatching { publishPresence(current, clientId, online = true) }
+                runCatching {
+                    publishPresence(
+                        current,
+                        clientId,
+                        online = true,
+                        qos = MqttQos.AT_MOST_ONCE,
+                        retain = false,
+                    )
+                }
             }
         }
 
@@ -253,12 +274,18 @@ class MqttForegroundService : Service() {
         Log.i(TAG, "已连接 $endpoint，订阅 ${settings.subscribeTopic}")
     }
 
-    private suspend fun publishPresence(client: Mqtt3AsyncClient, clientId: String, online: Boolean) {
+    private suspend fun publishPresence(
+        client: Mqtt3AsyncClient,
+        clientId: String,
+        online: Boolean,
+        qos: MqttQos = MqttQos.AT_LEAST_ONCE,
+        retain: Boolean = true,
+    ) {
         client.publishWith()
             .topic(MqttPresence.topicFor(clientId))
             .payload(MqttPresence.payload(this, clientId, online))
-            .qos(MqttQos.AT_LEAST_ONCE)
-            .retain(true)
+            .qos(qos)
+            .retain(retain)
             .send()
             .await()
     }
@@ -340,7 +367,7 @@ class MqttForegroundService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val KEEP_ALIVE_SECONDS = 60
         private const val MAX_BACKOFF_MS = 60_000L
-        private const val PRESENCE_HEARTBEAT_MS = 30_000L
+        private const val PRESENCE_HEARTBEAT_MS = 60_000L
 
         const val ACTION_START = "com.xct258.mqttnotify.action.START"
         const val ACTION_STOP = "com.xct258.mqttnotify.action.STOP"

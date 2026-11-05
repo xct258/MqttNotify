@@ -1,5 +1,10 @@
 package com.xct258.mqttnotify.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,10 +38,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xct258.mqttnotify.R
@@ -69,6 +77,11 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var needsBatteryExemption by remember { mutableStateOf(!isIgnoringBatteryOptimizations(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        needsBatteryExemption = !isIgnoringBatteryOptimizations(context)
+    }
 
     LaunchedEffect(settings) {
         if (!formLoaded) {
@@ -256,6 +269,41 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         Switch(checked = autoStart, onCheckedChange = { autoStart = it })
                     }
 
+                    HorizontalDivider()
+
+                    Text(
+                        text = "后台保活",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.ui_battery_optimization),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                text = stringResource(R.string.ui_battery_optimization_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Button(
+                            onClick = { requestIgnoreBatteryOptimizations(context) },
+                            enabled = needsBatteryExemption,
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (needsBatteryExemption) R.string.ui_battery_optimization_action
+                                    else R.string.ui_battery_optimization_done
+                                )
+                            )
+                        }
+                    }
+
                     Button(
                         onClick = {
                             viewModel.save(
@@ -388,3 +436,21 @@ private fun statusLabelRes(status: MqttState.Status): Int = when (status) {
 
 private fun formatTime(millis: Long): String =
     SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(millis))
+
+private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+    val powerManager = context.getSystemService(PowerManager::class.java) ?: return false
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+private fun requestIgnoreBatteryOptimizations(context: Context) {
+    if (isIgnoringBatteryOptimizations(context)) return
+    val request = Intent(
+        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+        Uri.parse("package:${context.packageName}"),
+    )
+    runCatching { context.startActivity(request) }.onFailure {
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+    }
+}

@@ -9,7 +9,7 @@ import java.time.OffsetDateTime
  * 客户端在线状态上报。
  *
  * 连接成功后向 `$presence/clients/{client_id}` 发布 retained JSON，断开时由
- * MQTT Will（LWT）把 `online` 改成 false；连接期间每 30 秒刷新一次。
+ * MQTT Will（LWT）把 `online` 改成 false；连接期间每 60 秒刷新一次。
  * 主题以 `$` 开头，不会被业务订阅的 `#` 通配符匹配到。
  */
 object MqttPresence {

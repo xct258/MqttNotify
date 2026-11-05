@@ -7,7 +7,7 @@ namespace MqttNotify.Core;
 /// 客户端在线状态上报。
 ///
 /// 约定：连接成功后向 <c>$presence/clients/{client_id}</c> 发布 retained JSON，
-/// 断开时由 MQTT Will（LWT）把 <c>online</c> 改成 false；连接期间每 30 秒刷新一次。
+/// 断开时由 MQTT Will（LWT）把 <c>online</c> 改成 false；连接期间每 60 秒刷新一次。
 /// 主题以 <c>$</c> 开头，不会被业务订阅的 <c>#</c> 通配符匹配到。
 /// </summary>
 public static class MqttPresence
