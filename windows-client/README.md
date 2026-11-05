@@ -37,7 +37,19 @@
 
 ### 2.1 运行
 
-推荐用**自包含单文件 + 压缩**发布，目标机器**不需要**预装 .NET：
+仓库 `dist/` 提供的是**依赖框架单文件**版（约 780 KB），目标机器需要先安装
+[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)（Windows x64）：
+
+```bash
+dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained false \
+  -p:PublishSingleFile=true \
+  -o artifacts/win-x64
+```
+
+产物是 `artifacts/win-x64/MqttNotify.exe`（Windows x64），拷到目标机器双击即可运行。
+首次启动请点托盘图标打开主窗口填写 Broker 地址，然后「保存并重连」。
+
+如果目标机器不能装运行时，也可以改成自包含发布（体积大很多）：
 
 ```bash
 dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained true \
@@ -46,19 +58,15 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
   -o artifacts/win-x64
 ```
 
-产物是 `artifacts/win-x64/MqttNotify.exe`（Windows x64），拷到目标机器双击即可运行。
-首次启动请点托盘图标打开主窗口填写 Broker 地址，然后「保存并重连」。
-
 三种发布方式的实测体积（本仓库的 Release 配置）：
 
 | 方式 | 体积 | 目标机器要求 | 说明 |
 | --- | --- | --- | --- |
-| 自包含 + 压缩 | **72 MB** | 无 | **推荐**。启动时需把压缩的程序集解到临时目录，首启略慢 |
+| 依赖框架 | **780 KB** | 需装 .NET 10 桌面运行时 | **本仓库 dist 采用**，体积最小 |
+| 自包含 + 压缩 | 72 MB | 无 | 免装运行时；启动时需解压，首启略慢 |
 | 自包含 | 166 MB | 无 | 启动最快，体积最大 |
-| 依赖框架 | 780 KB | 需装 .NET 10 桌面运行时 | 体积最小，但多一个前置依赖 |
 
-去掉 `-p:EnableCompressionInSingleFile=true` 与去掉 `--self-contained true`
-即分别对应后两种。注意 WPF **不支持** `PublishTrimmed`，别指望靠裁剪把自包含体积压下去。
+注意 WPF **不支持** `PublishTrimmed`，别指望靠裁剪把自包含体积压下去。
 
 > 托盘图标与 exe 图标是同一个 `Assets/MqttNotify.ico`，会随程序一起拷到输出目录。
 

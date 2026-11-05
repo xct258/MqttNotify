@@ -49,7 +49,7 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 | 文件 | 大小 | 说明 |
 | --- | --- | --- |
 | `dist/MqttNotify-Android-debug.apk` | 约 19 MB | debug 签名，可直接侧载安装 |
-| `dist/MqttNotify-Windows-x64.exe` | 约 72 MB | 自包含单文件，**免装 .NET 运行时**，双击即用 |
+| `dist/MqttNotify-Windows-x64.exe` | 约 780 KB | 依赖框架单文件，需预装 **.NET 10 Desktop Runtime** |
 
 产物是**快照**：源码更新后需要重新构建才会同步。不希望仓库里带大二进制的话，
 删掉 `dist/` 并改走 GitHub Releases 挂附件即可。
