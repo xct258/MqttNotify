@@ -30,6 +30,9 @@ public sealed class MqttConnectionService : IAsyncDisposable
     /// <summary>payload 无「【待办提醒】」前缀时使用的兜底标题。</summary>
     public const string DefaultAlertTitle = "新提醒";
 
+    /// <summary>在线状态心跳间隔；服务端超过 120 秒收不到心跳就视为离线。</summary>
+    public static TimeSpan PresenceHeartbeatInterval { get; } = TimeSpan.FromSeconds(30);
+
     private readonly Func<IMqttClient> _clientFactory;
     private readonly TimeSpan _initialBackoff;
     private readonly TimeSpan _maxBackoff;
@@ -190,7 +193,34 @@ public sealed class MqttConnectionService : IAsyncDisposable
                     ConnectionSnapshot.Connected($"{endpoint} · {settings.SubscribeTopic}"),
                     generation);
 
-                await disconnected.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await PublishPresenceAsync(client, clientId, online: true, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // 在线状态只是管理页辅助信息，发布失败不应影响业务订阅。
+                }
+
+                // 连接期间定时刷新 last_seen；异常断线时 broker 会代发 Will（online=false）。
+                using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var heartbeat = PresenceHeartbeatAsync(client, clientId, heartbeatCts.Token);
+                try
+                {
+                    await disconnected.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    await heartbeatCts.CancelAsync().ConfigureAwait(false);
+                    try
+                    {
+                        await heartbeat.ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // 正常取消
+                    }
+                }
 
                 if (cancellationToken.IsCancellationRequested)
                 {
@@ -222,6 +252,20 @@ public sealed class MqttConnectionService : IAsyncDisposable
             }
             finally
             {
+                // 正常断开（用户停止 / 切换配置）时主动落一次离线状态；异常断线走 Will。
+                if (client.IsConnected)
+                {
+                    try
+                    {
+                        await PublishPresenceAsync(client, clientId, online: false, CancellationToken.None)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception)
+                    {
+                        // 离线状态发布失败不阻断断开流程，服务端还有 TTL 兜底。
+                    }
+                }
+
                 await SafeDisconnectAsync(client).ConfigureAwait(false);
             }
 
@@ -256,6 +300,47 @@ public sealed class MqttConnectionService : IAsyncDisposable
             DateTimeOffset.Now);
 
         AlertReceived?.Invoke(this, alert);
+    }
+
+    private static async Task PresenceHeartbeatAsync(
+        IMqttClient client,
+        string clientId,
+        CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            await Task.Delay(PresenceHeartbeatInterval, cancellationToken).ConfigureAwait(false);
+
+            if (!client.IsConnected)
+            {
+                continue;
+            }
+
+            try
+            {
+                await PublishPresenceAsync(client, clientId, online: true, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // 单次心跳失败不影响连接，下一次继续。
+            }
+        }
+    }
+
+    private static async Task PublishPresenceAsync(
+        IMqttClient client,
+        string clientId,
+        bool online,
+        CancellationToken cancellationToken)
+    {
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic(MqttPresence.TopicFor(clientId))
+            .WithPayload(MqttPresence.Payload(clientId, online))
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithRetainFlag(true)
+            .Build();
+
+        await client.PublishAsync(message, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task SafeDisconnectAsync(IMqttClient client)

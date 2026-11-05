@@ -29,6 +29,8 @@
 - QoS 1、`clean session = true`、KeepAlive 60s、匿名认证、`retained = false`
 - 主题最后一段是 `task_id`（解析不出数字就为 `null`，仅用于展示）
 - payload 为纯文本：`【待办提醒】{title}\n{message}`；没有该前缀时整段当正文，标题用默认值
+- 连接后向 `$presence/clients/{client_id}` 发布 retained 在线状态，30 秒心跳；
+  异常退出由 MQTT Will 标记离线，供 push-server 管理页展示
 
 解析口径由 `MqttMessageParser` 唯一实现，且被两端共享的测试用例钉死（见 `TESTING.md`）。
 

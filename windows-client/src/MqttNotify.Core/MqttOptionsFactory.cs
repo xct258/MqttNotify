@@ -3,6 +3,7 @@ using System.Security.Authentication;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
+using MQTTnet.Protocol;
 
 namespace MqttNotify.Core;
 
@@ -30,7 +31,13 @@ public static class MqttOptionsFactory
             .WithProtocolVersion(MqttProtocolVersion.V311)
             .WithCleanSession(true)
             .WithKeepAlivePeriod(KeepAlive)
-            .WithTimeout(ConnectTimeout);
+            .WithTimeout(ConnectTimeout)
+            // 异常退出（进程被杀 / 断网）时由 broker 代发离线状态；正常断开时
+            // MqttConnectionService 会先主动发布 online=false。
+            .WithWillTopic(MqttPresence.TopicFor(clientId))
+            .WithWillPayload(MqttPresence.Payload(clientId, online: false))
+            .WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithWillRetain(true);
 
         if (settings.Transport.IsWebSocket())
         {

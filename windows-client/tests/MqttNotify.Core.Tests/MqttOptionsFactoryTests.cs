@@ -1,6 +1,8 @@
 using System.Net;
+using System.Text.Json;
 using MQTTnet.Client;
 using MQTTnet.Formatter;
+using MQTTnet.Protocol;
 using Xunit;
 
 namespace MqttNotify.Core.Tests;
@@ -128,6 +130,29 @@ public class MqttOptionsFactoryTests
             Build(MqttTransport.Wss, port: 8443).ChannelOptions);
 
         Assert.Equal("wss://broker.local:8443/mqtt", ws.Uri);
+    }
+
+    [Fact]
+    public void 连接参数带在线状态Will()
+    {
+        var options = Build(MqttTransport.Wss);
+        var clientId = options.ClientId;
+
+        Assert.Equal(MqttPresence.TopicFor(clientId), options.WillTopic);
+        Assert.True(options.WillRetain);
+        Assert.Equal(MqttQualityOfServiceLevel.AtLeastOnce, options.WillQualityOfServiceLevel);
+
+        using var payload = JsonDocument.Parse(options.WillPayload);
+        var root = payload.RootElement;
+        Assert.Equal(clientId, root.GetProperty("client_id").GetString());
+        Assert.Equal("windows", root.GetProperty("platform").GetString());
+        Assert.False(root.GetProperty("online").GetBoolean());
+    }
+
+    [Fact]
+    public void 在线状态主题会清理客户端ID里的斜杠()
+    {
+        Assert.Equal("$presence/clients/win-a_b", MqttPresence.TopicFor("win-a/b"));
     }
 
     [Fact]

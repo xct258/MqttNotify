@@ -22,6 +22,7 @@ import com.xct258.mqttnotify.data.AppSettings
 import com.xct258.mqttnotify.data.SettingsRepository
 import com.xct258.mqttnotify.mqtt.InsecureSsl
 import com.xct258.mqttnotify.mqtt.MqttMessageParser
+import com.xct258.mqttnotify.mqtt.MqttPresence
 import com.xct258.mqttnotify.mqtt.MqttState
 import com.xct258.mqttnotify.notify.NotificationHelper
 import kotlinx.coroutines.CancellationException
@@ -65,6 +66,11 @@ class MqttForegroundService : Service() {
     private var client: Mqtt3AsyncClient? = null
 
     private var settingsJob: Job? = null
+
+    /** 当前连接使用的 client id / 心跳任务，用于离线状态上报。 */
+    @Volatile
+    private var activeClientId: String? = null
+    private var presenceJob: Job? = null
 
     /**
      * 连接代号：每次拆连接 / 新建立都自增。
@@ -149,6 +155,7 @@ class MqttForegroundService : Service() {
     private suspend fun establish(settings: AppSettings) {
         val gen = generation
         val clientId = settings.clientId.ifBlank { "android-" + UUID.randomUUID().toString().take(8) }
+        activeClientId = clientId
 
         // 展示用地址（同时覆盖 TCP/WS/WSS），状态栏与日志都用它，便于排查
         val endpoint = settings.transport.displayUrl(
@@ -159,11 +166,19 @@ class MqttForegroundService : Service() {
 
         MqttState.setStatus(MqttState.Status.CONNECTING, endpoint)
 
+        val will = Mqtt3Publish.builder()
+            .topic(MqttPresence.topicFor(clientId))
+            .payload(MqttPresence.payload(this, clientId, online = false))
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(true)
+            .build()
+
         val builder = MqttClient.builder()
             .useMqttVersion3()
             .identifier(clientId)
             .serverHost(settings.host)
             .serverPort(settings.port)
+            .willPublish(will)
             .automaticReconnectWithDefaultConfig()
             .addConnectedListener {
                 if (gen == generation) {
@@ -220,6 +235,18 @@ class MqttForegroundService : Service() {
             .send()
             .await()
 
+        runCatching { publishPresence(newClient, clientId, online = true) }
+
+        // HiveMQ 自动重连期间 heartbeat 会继续跑，重连后自动把状态刷回在线。
+        presenceJob?.cancel()
+        presenceJob = scope.launch {
+            while (isActive) {
+                delay(PRESENCE_HEARTBEAT_MS)
+                val current = client ?: break
+                runCatching { publishPresence(current, clientId, online = true) }
+            }
+        }
+
         MqttState.setStatus(
             MqttState.Status.CONNECTED,
             "$endpoint · ${settings.subscribeTopic}",
@@ -227,11 +254,32 @@ class MqttForegroundService : Service() {
         Log.i(TAG, "已连接 $endpoint，订阅 ${settings.subscribeTopic}")
     }
 
+    private suspend fun publishPresence(client: Mqtt3AsyncClient, clientId: String, online: Boolean) {
+        client.publishWith()
+            .topic(MqttPresence.topicFor(clientId))
+            .payload(MqttPresence.payload(this, clientId, online))
+            .qos(MqttQos.AT_LEAST_ONCE)
+            .retain(true)
+            .send()
+            .await()
+    }
+
     private suspend fun teardownClient() {
         generation++
+        presenceJob?.cancel()
+        presenceJob = null
+
         val old = client ?: return
+        val clientId = activeClientId
         client = null
+        activeClientId = null
+
         withContext(Dispatchers.IO) {
+            if (clientId != null) {
+                runCatching {
+                    publishPresence(old, clientId, online = false)
+                }
+            }
             runCatching { old.disconnect().get(1, TimeUnit.SECONDS) }
         }
     }
@@ -293,6 +341,7 @@ class MqttForegroundService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val KEEP_ALIVE_SECONDS = 60
         private const val MAX_BACKOFF_MS = 60_000L
+        private const val PRESENCE_HEARTBEAT_MS = 30_000L
 
         const val ACTION_START = "com.xct258.mqttnotify.action.START"
         const val ACTION_STOP = "com.xct258.mqttnotify.action.STOP"

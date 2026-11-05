@@ -28,6 +28,9 @@
 
 **下行消息**：payload 为拼好的纯文本 `【待办提醒】{title}\n{message}`；主题尾段即 `task_id`。
 
+**在线状态**：连接后向 `$presence/clients/{client_id}` 发布 retained 在线状态，30 秒心跳；
+异常退出由 MQTT Will 标记离线，供 push-server 管理页展示。
+
 ```
 主题: taskops/todo/7
 正文: 【待办提醒】交电费
