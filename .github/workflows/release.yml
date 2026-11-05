@@ -30,6 +30,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+          # 缓存 NuGet 包；csproj / Directory.Build.props 变化时自动换 key
+          cache: true
+          cache-dependency-path: |
+            windows-client/**/*.csproj
+            windows-client/Directory.Build.props
 
       - name: Test
         shell: pwsh
@@ -81,15 +86,19 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          # GitHub 的 ubuntu-latest 已预装 SDK，不要再跑 setup-android@v3：
-          # 它会尝试安装早已被移除的 "tools" 包，直接失败。
+          # GitHub 的 ubuntu-latest 已预装 SDK；只在缺包时安装，避免每次跑 sdkmanager。
           SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -name sdkmanager -type f | head -n1)"
           if [ -z "$SDKMANAGER" ]; then
             echo "找不到 sdkmanager，ANDROID_HOME=${ANDROID_HOME:-未设置}" >&2
             exit 1
           fi
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
+          if [ -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms/android-34" ] &&
+             [ -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/34.0.0" ]; then
+            echo "Android SDK 34 / build-tools 34.0.0 已预装"
+          else
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
+          fi
 
       - uses: gradle/actions/setup-gradle@v4
         with:
