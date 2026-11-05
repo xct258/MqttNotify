@@ -20,8 +20,7 @@ object MqttPresence {
 
     fun suffixFor(clientId: String): String {
         val id = clientId.trim()
-        // 新格式用 _ 分隔；兼容旧格式的 -，确保升级后仍能识别同一台设备。
-        val separator = id.lastIndexOf('_').takeIf { it >= 0 } ?: id.lastIndexOf('-')
+        val separator = id.lastIndexOf('_')
         return if (separator >= 0 && separator < id.length - 1) id.substring(separator + 1) else id
     }
 

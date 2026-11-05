@@ -57,9 +57,7 @@ public partial class App : Application
         // 状态可能在装配前就已变化，先把当前状态同步给托盘
         _tray.UpdateStatus(_viewModel.Status, _viewModel.StatusDetail);
 
-        _window = new MainWindow { DataContext = _viewModel };
-        _window.HiddenToTray += OnHiddenToTray;
-        MainWindow = _window;
+        _window = CreateMainWindow();
 
         if (!IsMinimizedStart(e.Args))
         {
@@ -97,14 +95,38 @@ public partial class App : Application
     private static bool IsMinimizedStart(string[] args) =>
         args.Any(a => string.Equals(a, AutostartService.MinimizedArgument, StringComparison.OrdinalIgnoreCase));
 
+    private MainWindow CreateMainWindow()
+    {
+        var window = new MainWindow { DataContext = _viewModel };
+        window.HiddenToTray += OnHiddenToTray;
+        window.Closed += (_, _) =>
+        {
+            // 用户关掉「关闭即最小化」后窗口会真正关闭；托盘再次双击时必须重建，
+            // 不能对已关闭的 Window 调 Show()。
+            if (ReferenceEquals(_window, window))
+            {
+                _window = null;
+            }
+            if (ReferenceEquals(MainWindow, window))
+            {
+                MainWindow = null;
+            }
+        };
+        MainWindow = window;
+        return window;
+    }
+
     private void ShowMainWindow()
     {
-        if (_window is null)
+        if (_window is null || !_window.IsLoaded)
         {
-            return;
+            _window = CreateMainWindow();
         }
 
-        _window.Show();
+        if (!_window.IsVisible)
+        {
+            _window.Show();
+        }
 
         if (_window.WindowState == WindowState.Minimized)
         {

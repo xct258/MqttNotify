@@ -18,7 +18,5 @@ class MqttPresenceTest {
         assertEquals("abcd1234", MqttPresence.suffixFor("android_abcd1234"))
         assertEquals("abcd1234", MqttPresence.suffixFor("my-phone_abcd1234"))
         assertEquals("abcd1234", MqttPresence.suffixFor("my-home-phone_abcd1234"))
-        // 兼容旧格式
-        assertEquals("abcd1234", MqttPresence.suffixFor("my-phone-abcd1234"))
     }
 }
