@@ -12,4 +12,11 @@ class MqttPresenceTest {
             MqttPresence.topicFor("android-a/b"),
         )
     }
+
+    @Test
+    fun `设备后缀取客户端 ID 最后一段`() {
+        assertEquals("abcd1234", MqttPresence.suffixFor("android-abcd1234"))
+        assertEquals("abcd1234", MqttPresence.suffixFor("my-phone-abcd1234"))
+        assertEquals("abcd1234", MqttPresence.suffixFor("my-home-phone-abcd1234"))
+    }
 }

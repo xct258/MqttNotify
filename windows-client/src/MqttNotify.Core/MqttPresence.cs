@@ -19,10 +19,18 @@ public static class MqttPresence
     public static string TopicFor(string clientId) =>
         $"{TopicPrefix}/{clientId.Trim().Replace('/', '_')}";
 
+    public static string SuffixFor(string clientId)
+    {
+        var id = clientId.Trim();
+        var separator = id.LastIndexOf('-');
+        return separator >= 0 && separator < id.Length - 1 ? id[(separator + 1)..] : id;
+    }
+
     public static byte[] Payload(string clientId, bool online) =>
         JsonSerializer.SerializeToUtf8Bytes(new
         {
             client_id = clientId,
+            suffix = SuffixFor(clientId),
             name = Environment.MachineName,
             platform = Platform,
             version = AppVersion,

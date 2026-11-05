@@ -18,6 +18,12 @@ object MqttPresence {
     fun topicFor(clientId: String): String =
         "$TOPIC_PREFIX/${clientId.trim().replace('/', '_')}"
 
+    fun suffixFor(clientId: String): String {
+        val id = clientId.trim()
+        val separator = id.lastIndexOf('-')
+        return if (separator >= 0 && separator < id.length - 1) id.substring(separator + 1) else id
+    }
+
     fun payload(context: Context, clientId: String, online: Boolean): ByteArray {
         val version = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -30,6 +36,7 @@ object MqttPresence {
 
         return JSONObject()
             .put("client_id", clientId)
+            .put("suffix", suffixFor(clientId))
             .put("name", name)
             .put("platform", "android")
             .put("version", version)

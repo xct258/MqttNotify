@@ -147,12 +147,21 @@ public class MqttOptionsFactoryTests
         Assert.Equal(clientId, root.GetProperty("client_id").GetString());
         Assert.Equal("windows", root.GetProperty("platform").GetString());
         Assert.False(root.GetProperty("online").GetBoolean());
+        Assert.Equal(MqttPresence.SuffixFor(clientId), root.GetProperty("suffix").GetString());
     }
 
     [Fact]
     public void 在线状态主题会清理客户端ID里的斜杠()
     {
         Assert.Equal("$presence/clients/win-a_b", MqttPresence.TopicFor("win-a/b"));
+    }
+
+    [Fact]
+    public void 设备后缀取客户端ID最后一段()
+    {
+        Assert.Equal("abcd1234", MqttPresence.SuffixFor("windows-abcd1234"));
+        Assert.Equal("abcd1234", MqttPresence.SuffixFor("my-phone-abcd1234"));
+        Assert.Equal("abcd1234", MqttPresence.SuffixFor("my-home-phone-abcd1234"));
     }
 
     [Fact]
