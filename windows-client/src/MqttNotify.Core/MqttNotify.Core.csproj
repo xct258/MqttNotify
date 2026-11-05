@@ -5,7 +5,7 @@
     刻意不引用任何 Windows/WPF 类型，因此可以在 Linux/macOS 上编译并跑单元测试。
   -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>MqttNotify.Core</RootNamespace>
   </PropertyGroup>
 

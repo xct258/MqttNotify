@@ -6,7 +6,7 @@
 与手机端（同作者的 Android 版 `MqttNotify`）共用同一套协议、同一份解析契约，
 两端对同一条 payload 的解析结果保证一致。
 
-- **技术栈**：C# / .NET 8 / WPF（托盘图标用 WinForms 的 `NotifyIcon`）
+- **技术栈**：C# / .NET 10 / WPF（托盘图标用 WinForms 的 `NotifyIcon`）
 - **MQTT 库**：MQTTnet 4.3.7（client 与 server 同包，便于测试起进程内 broker）
 - **形态**：托盘常驻 + 主窗口设置页，可开机自启、可关闭即最小化到托盘
 
@@ -53,9 +53,9 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 
 | 方式 | 体积 | 目标机器要求 | 说明 |
 | --- | --- | --- | --- |
-| 自包含 + 压缩 | **69 MB** | 无 | **推荐**。启动时需把压缩的程序集解到临时目录，首启略慢 |
-| 自包含 | 155 MB | 无 | 启动最快，体积最大 |
-| 依赖框架 | 768 KB | 需装 .NET 8 桌面运行时 | 体积最小，但多一个前置依赖 |
+| 自包含 + 压缩 | **72 MB** | 无 | **推荐**。启动时需把压缩的程序集解到临时目录，首启略慢 |
+| 自包含 | 166 MB | 无 | 启动最快，体积最大 |
+| 依赖框架 | 780 KB | 需装 .NET 10 桌面运行时 | 体积最小，但多一个前置依赖 |
 
 去掉 `-p:EnableCompressionInSingleFile=true` 与去掉 `--self-contained true`
 即分别对应后两种。注意 WPF **不支持** `PublishTrimmed`，别指望靠裁剪把自包含体积压下去。
@@ -127,7 +127,7 @@ server {
 
 ```
 MqttNotify.sln
-├── src/MqttNotify.Core/          平台无关核心库（net8.0，可在 Linux/macOS 上跑测试）
+├── src/MqttNotify.Core/          平台无关核心库（net10.0，可在 Linux/macOS 上跑测试）
 │   ├── AppSettings.cs            配置模型 + 订阅主题/路径规范化
 │   ├── MqttTransport.cs          TCP / WS / WSS 及其默认端口、展示地址
 │   ├── MqttMessageParser.cs      下行 payload 解析（与手机端同契约）
@@ -135,7 +135,7 @@ MqttNotify.sln
 │   ├── MqttConnectionService.cs  连接 / 订阅 / 断线重连 / 消息回调
 │   ├── ConnectionState.cs        连接状态与提醒记录模型
 │   └── SettingsStore.cs          JSON 持久化（原子写入 + 损坏降级）
-├── src/MqttNotify.Windows/       WPF 界面层（net8.0-windows）
+├── src/MqttNotify.Windows/       WPF 界面层（net10.0-windows）
 │   ├── App.xaml(.cs)             单实例守卫 + 依赖装配 + 托盘生命周期
 │   ├── MainWindow.xaml(.cs)      状态卡片 / 设置表单 / 最近提醒列表
 │   ├── ViewModels/MainViewModel.cs
@@ -153,7 +153,7 @@ Windows 工程本身在非 Windows 上跑不起来，但它的业务逻辑全部
 
 ## 4. 构建
 
-需要 .NET 8 SDK。仓库**不含** `gradlew` 之类的包装脚本，直接用 `dotnet`：
+需要 .NET 10 SDK。仓库**不含** `gradlew` 之类的包装脚本，直接用 `dotnet`：
 
 ```bash
 dotnet build MqttNotify.sln -c Release

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <!-- 托盘图标用 WinForms 的 NotifyIcon（WPF 自身没有托盘 API），这是最轻的做法 -->
     <UseWindowsForms>true</UseWindowsForms>
