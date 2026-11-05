@@ -68,7 +68,7 @@ mosquitto_pub -h 127.0.0.1 -t 'taskops/todo/7' -m 'selftest'
   -Dmqtt.broker.host=127.0.0.1 -Dmqtt.broker.port=1883 \
   --tests '*MqttBrokerIntegrationTest*'
 
-# WebSocket（客户端默认传输方式，对应 push-server 对外的 9001）
+# WebSocket（局域网直连 9001；客户端默认已改为公网 WSS）
 ./gradlew :app:testDebugUnitTest \
   -Dmqtt.broker.host=127.0.0.1 -Dmqtt.broker.port=9001 \
   -Dmqtt.broker.transport=ws \

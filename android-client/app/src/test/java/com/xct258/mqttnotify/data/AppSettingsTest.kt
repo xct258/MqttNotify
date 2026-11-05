@@ -8,12 +8,19 @@ import org.junit.Test
 class AppSettingsTest {
 
     @Test
-    fun `默认使用对局域网可达的 WebSocket 与 9001 端口`() {
+    fun `默认使用公网 WSS 入口`() {
         val s = AppSettings()
-        assertEquals(9001, s.port)
+        assertEquals("push-server.o1-1.xct258.top", s.host)
+        assertEquals(443, s.port)
+        assertEquals("/mqtt", s.effectiveWsPath)
         assertEquals("taskops/todo", s.topicBase)
         assertEquals("taskops/todo/#", s.subscribeTopic)
-        assertEquals(MqttTransport.WS, s.transport)
+        assertEquals(MqttTransport.WSS, s.transport)
+        assertTrue(s.isValid)
+        assertEquals(
+            "wss://push-server.o1-1.xct258.top/mqtt",
+            s.transport.displayUrl(s.host, s.port, s.effectiveWsPath),
+        )
     }
 
     @Test
@@ -21,6 +28,24 @@ class AppSettingsTest {
         assertEquals("a/b/#", AppSettings(topicBase = "a/b").subscribeTopic)
         assertEquals("a/b/#", AppSettings(topicBase = "a/b/").subscribeTopic)
         assertEquals("a/b/#", AppSettings(topicBase = "  a/b//  ").subscribeTopic)
+        // 直接粘贴完整通配主题时，不能二次拼接成非法的 a/b/#/#
+        assertEquals("a/b/#", AppSettings(topicBase = "a/b/#").subscribeTopic)
+        assertEquals("#", AppSettings(topicBase = "#").subscribeTopic)
+        assertEquals("#", AppSettings(topicBase = "  #  ").subscribeTopic)
+    }
+
+    @Test
+    fun `normalized 会去掉用户粘贴的通配符尾缀`() {
+        assertEquals("a/b", AppSettings(topicBase = "a/b/#").normalized().topicBase)
+        assertEquals("#", AppSettings(topicBase = " # ").normalized().topicBase)
+    }
+
+    @Test
+    fun `展示地址按传输方式拼装`() {
+        assertEquals("mqtt://h:1883", MqttTransport.TCP.displayUrl("h", 1883, "/mqtt"))
+        assertEquals("ws://h:9001/mqtt", MqttTransport.WS.displayUrl("h", 9001, "/mqtt"))
+        assertEquals("wss://h/mqtt", MqttTransport.WSS.displayUrl("h", 443, "/mqtt"))
+        assertEquals("wss://h:8443/mqtt", MqttTransport.WSS.displayUrl("h", 8443, "/mqtt"))
     }
 
     @Test

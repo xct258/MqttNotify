@@ -30,24 +30,30 @@ class SettingsRepository private constructor(private val dataStore: DataStore<Pr
             if (e is IOException) emit(emptyPreferences()) else throw e
         }
         .map { prefs ->
-            AppSettings(
-                host = prefs[KEY_HOST] ?: AppSettings.DEFAULT_HOST,
-                port = prefs[KEY_PORT] ?: AppSettings.DEFAULT_PORT,
-                topicBase = prefs[KEY_TOPIC] ?: AppSettings.DEFAULT_TOPIC,
-                serverName = prefs[KEY_SERVER] ?: AppSettings.DEFAULT_SERVER,
-                clientId = prefs[KEY_CLIENT_ID] ?: "",
-                autoStartOnBoot = prefs[KEY_AUTO_START] ?: true,
-                transport = prefs[KEY_TRANSPORT]
-                    ?.let { name -> runCatching { MqttTransport.valueOf(name) }.getOrNull() }
-                    ?: MqttTransport.WS,
-                wsPath = prefs[KEY_WS_PATH] ?: AppSettings.DEFAULT_WS_PATH,
-                allowInsecureTls = prefs[KEY_INSECURE_TLS] ?: false,
-            )
+            // 开发期不做迁移：旧版本的配置直接忽略，回落到当前默认值。
+            if ((prefs[KEY_CONFIG_VERSION] ?: 0) != AppSettings.CONFIG_VERSION) {
+                AppSettings()
+            } else {
+                AppSettings(
+                    host = prefs[KEY_HOST] ?: AppSettings.DEFAULT_HOST,
+                    port = prefs[KEY_PORT] ?: AppSettings.DEFAULT_PORT,
+                    topicBase = prefs[KEY_TOPIC] ?: AppSettings.DEFAULT_TOPIC,
+                    serverName = prefs[KEY_SERVER] ?: AppSettings.DEFAULT_SERVER,
+                    clientId = prefs[KEY_CLIENT_ID] ?: "",
+                    autoStartOnBoot = prefs[KEY_AUTO_START] ?: true,
+                    transport = prefs[KEY_TRANSPORT]
+                        ?.let { name -> runCatching { MqttTransport.valueOf(name) }.getOrNull() }
+                        ?: AppSettings.DEFAULT_TRANSPORT,
+                    wsPath = prefs[KEY_WS_PATH] ?: AppSettings.DEFAULT_WS_PATH,
+                    allowInsecureTls = prefs[KEY_INSECURE_TLS] ?: false,
+                )
+            }
         }
 
     suspend fun save(settings: AppSettings) {
         val s = settings.normalized()
         dataStore.edit { prefs ->
+            prefs[KEY_CONFIG_VERSION] = AppSettings.CONFIG_VERSION
             prefs[KEY_HOST] = s.host
             prefs[KEY_PORT] = s.port
             prefs[KEY_TOPIC] = s.topicBase
@@ -70,6 +76,7 @@ class SettingsRepository private constructor(private val dataStore: DataStore<Pr
                     .also { instance = it }
             }
 
+        private val KEY_CONFIG_VERSION = intPreferencesKey("config_version")
         private val KEY_HOST = stringPreferencesKey("host")
         private val KEY_PORT = intPreferencesKey("port")
         private val KEY_TOPIC = stringPreferencesKey("topic_base")

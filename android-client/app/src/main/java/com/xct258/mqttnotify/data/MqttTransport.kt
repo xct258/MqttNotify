@@ -31,7 +31,7 @@ enum class MqttTransport(
     WSS("wss", 443, isWebSocket = true, isTls = true),
     ;
 
-    /** 展示用连接地址，如 `wss://example.com:443/mqtt`、`mqtt://10.0.0.2:1883`。 */
+    /** 展示用连接地址，如 `wss://example.com/mqtt`、`mqtt://10.0.0.2:1883`。 */
     fun displayUrl(host: String, port: Int, wsPath: String): String {
         val displayHost = host.ifBlank { "<broker-host>" }
         val path = if (!isWebSocket) {
@@ -39,6 +39,8 @@ enum class MqttTransport(
         } else {
             wsPath.trim().let { if (it.startsWith("/")) it else "/$it" }
         }
-        return "$scheme://$displayHost:$port$path"
+        // WSS 的 443 是 scheme 默认端口，省略后展示成更常见的形式
+        val portPart = if (this == WSS && port == 443) "" else ":$port"
+        return "$scheme://$displayHost$portPart$path"
     }
 }

@@ -18,7 +18,7 @@
 | 协议 | MQTT 3.1.1 / 5.0 |
 | TCP 地址 | `mqtt://<broker-host>:1883` |
 | WebSocket 地址 | `ws://<broker-host>:9001` |
-| WebSocket + TLS | `wss://<broker-host>:443/mqtt`（需自备 TLS 终止） |
+| WebSocket + TLS | `wss://push-server.o1-1.xct258.top/mqtt`（**默认**） |
 | 鉴权 | 内网匿名 |
 | 订阅主题 | `{base}/#`，`base` 默认 `taskops/todo` |
 | QoS | 1（至少一次） |
@@ -56,8 +56,8 @@ listener 9001 0.0.0.0
 | 模式 | 地址 | 适用场景 |
 | --- | --- | --- |
 | `TCP` | `mqtt://host:1883` | 仅当 App 与 broker **同机**（1883 绑在 `127.0.0.1`，局域网手机连不上），或你自行放开了监听 |
-| `WS` | `ws://host:9001` | push-server 默认对外开放的监听，**客户端默认值**，手机走局域网/内网首选 |
-| `WSS` | `wss://host:443/mqtt` | WS 之上加 TLS。Mosquitto 的 websockets 监听默认是明文，WSS 需要自己在前面挂 TLS 终止（nginx / caddy / frp 等） |
+| `WS` | `ws://host:9001` | 仅局域网直连 Mosquitto 的 9001 |
+| `WSS` | `wss://push-server.o1-1.xct258.top/mqtt` | **客户端默认值**。公网入口，任何网络环境都能用 |
 
 WSS 用 nginx 反代 Mosquitto 的 9001 时，`location` 必须与 App 里的「WebSocket 路径」一致（默认 `/mqtt`）：
 
@@ -193,13 +193,15 @@ gradle :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/usr/bin/aapt2
 
 1. 打开 App，授予通知权限（Android 13+）。
 2. 在「连接设置」填入：
-   - **传输方式**：默认 `WS`（push-server 只把 1883 绑在 `127.0.0.1`，见 §1.1）；需要 TLS 时选 `WSS`，broker 与手机同机时才选 `TCP`
-   - **Broker 地址**：运行 push-server / Mosquitto 的主机（内网 IP 或反代域名）
-   - **端口**：切换传输方式会自动带出默认值（`9001` / `443` / `1883`），可手改
+   - **传输方式**：默认 `WSS`（公网入口 `wss://push-server.o1-1.xct258.top/mqtt`）；局域网直连可选 `WS`，broker 与手机同机时才选 `TCP`
+   - **Broker 地址**：默认 `push-server.o1-1.xct258.top`，也可以填内网 IP 或其它反代域名
+   - **端口**：切换传输方式会自动带出默认值（`443` / `9001` / `1883`），可手改
    - **WebSocket 路径**：选 `WS`/`WSS` 时出现，默认 `/mqtt`
    - **订阅主题**：默认 `taskops/todo`（与 `PUSH_TOPIC` 一致）
    - **Client ID**：留空则自动生成 `android-xxxxxxxx`
 3. 点「保存」，再点「启动接收」。状态卡片变为「已连接」，出现常驻通知。
+
+> 开发期不迁移旧配置：升级后旧的 DataStore 设置会被忽略，首次打开显示上面的默认公网 WSS。
 4. 服务端到点推送后，手机弹出提醒通知。
 5. 需要后台常驻时，建议在系统设置里对本 App 关闭电池优化（见「已知限制」）。
 

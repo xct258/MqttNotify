@@ -24,7 +24,7 @@
     <string name="ui_settings_title">连接设置</string>
     <string name="ui_transport">传输方式</string>
     <string name="ui_host">Broker 地址</string>
-    <string name="ui_host_hint">例如 192.168.1.10</string>
+    <string name="ui_host_hint">例如 push-server.o1-1.xct258.top</string>
     <string name="ui_port">端口</string>
     <string name="ui_ws_path">WebSocket 路径</string>
     <string name="ui_ws_path_hint">默认 /mqtt</string>

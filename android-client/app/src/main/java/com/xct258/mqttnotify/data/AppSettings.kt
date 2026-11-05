@@ -19,10 +19,10 @@ data class AppSettings(
     val clientId: String = "",
     val autoStartOnBoot: Boolean = true,
     /**
-     * 默认走 WebSocket：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
-     * 手机跨机连不上；9001 才是对外监听的端口。
+     * 默认走公网 WSS：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
+     * 手机跨机连不上；公网入口是 `wss://push-server.o1-1.xct258.top/mqtt`。
      */
-    val transport: MqttTransport = MqttTransport.WS,
+    val transport: MqttTransport = DEFAULT_TRANSPORT,
     val wsPath: String = DEFAULT_WS_PATH,
     val allowInsecureTls: Boolean = false,
 ) {
@@ -43,14 +43,14 @@ data class AppSettings(
     val isValid: Boolean
         get() = host.isNotBlank() && port in 1..65535 && topicBase.isNotBlank()
 
-    /** 通配订阅主题，例如 `taskops/todo/#`。 */
+    /** 通配订阅主题，例如 `taskops/todo/#`；base 填 `#` 时为 `#`。 */
     val subscribeTopic: String
-        get() = "${topicBase.trim().trimEnd('/')}/#"
+        get() = buildSubscribeTopic(topicBase)
 
     /** 规范化：去空白、补 wsPath、清掉与传输方式无关的开关。 */
     fun normalized(): AppSettings = copy(
         host = host.trim(),
-        topicBase = topicBase.trim().trimEnd('/'),
+        topicBase = normalizeTopicBase(topicBase),
         serverName = serverName.trim(),
         clientId = clientId.trim(),
         wsPath = effectiveWsPath,
@@ -58,10 +58,29 @@ data class AppSettings(
     )
 
     companion object {
-        const val DEFAULT_HOST = ""
-        const val DEFAULT_PORT = 9001
+        const val CONFIG_VERSION = 1
+        const val DEFAULT_HOST = "push-server.o1-1.xct258.top"
+        const val DEFAULT_PORT = 443
         const val DEFAULT_TOPIC = "taskops/todo"
         const val DEFAULT_SERVER = "taskops"
         const val DEFAULT_WS_PATH = "/mqtt"
+        val DEFAULT_TRANSPORT = MqttTransport.WSS
+
+        /**
+         * 规范化订阅主题的 base：既接受 `taskops/todo`，也接受直接粘贴
+         * `taskops/todo/#`，避免再拼一次变成非法的 `taskops/todo/#/#`。
+         * 单独的 `#` 表示订阅所有主题，原样保留。
+         */
+        fun normalizeTopicBase(topicBase: String): String {
+            val topic = topicBase.trim().trimEnd('/')
+            if (topic == "#") return "#"
+            return if (topic.endsWith("/#")) topic.dropLast(2).trimEnd('/') else topic
+        }
+
+        /** 根据 base 生成实际订阅的通配主题。 */
+        fun buildSubscribeTopic(topicBase: String): String {
+            val topic = normalizeTopicBase(topicBase)
+            return if (topic.isEmpty() || topic == "#") "#" else "$topic/#"
+        }
     }
 }
