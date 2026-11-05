@@ -19,7 +19,8 @@
 | 监听 | 地址 | 说明 |
 | --- | --- | --- |
 | TCP 1883 | `127.0.0.1` | **只绑本机**，跨机连不上（重要） |
-| WebSocket 9001 | `0.0.0.0` | 默认对外开放，局域网首选 |
+| WebSocket 9001 | `0.0.0.0` | 局域网直连用 |
+| WSS 443 | `push-server.o1-1.xct258.top` | 公网入口（TLS 终止后转发到 9001），**客户端默认地址** |
 | FastAPI REST 8383 | `0.0.0.0` | 本版本未使用（离线补拉不在首版范围内） |
 
 本客户端的行为：
@@ -77,9 +78,10 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
-| `host` | 空 | Broker 主机名或 IP |
-| `port` | 9001 | 端口；切换传输方式时若仍是旧默认值会自动跟随 |
-| `transport` | `Ws` | `Tcp` / `Ws` / `Wss`；默认 WebSocket，避开只绑 127.0.0.1 的 TCP 1883 |
+| `configVersion` | `1` | 配置格式版本；版本不一致会直接重置为默认配置 |
+| `host` | `push-server.o1-1.xct258.top` | Broker 主机名或 IP |
+| `port` | `443` | 端口；切换传输方式时若仍是旧默认值会自动跟随 |
+| `transport` | `Wss` | `Tcp` / `Ws` / `Wss`；默认公网 WSS |
 | `wsPath` | `/mqtt` | WS/WSS 的路径；缺前导 `/` 会自动补 |
 | `topicBase` | `taskops/todo` | 下行主题 base，实际订阅 `{base}/#` |
 | `serverName` | `taskops` | 来源服务名（预留给后续 REST 补拉） |
@@ -88,8 +90,8 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 | `autoStartOnBoot` | `true` | 写 `HKCU` 的 Run 项，不需要管理员权限 |
 | `minimizeToTrayOnClose` | `true` | 点 X 收进托盘而不是退出 |
 
-> 配置文件使用小驼峰字段名，读取时也兼容旧版大驼峰，并允许手写注释和尾逗号。
-> `host` 只填主机名或 IP，不要带 `ws://`、端口或 `/mqtt` 路径；端口和路径分别由 `port`、`wsPath` 控制。
+> 配置文件使用小驼峰字段名，不兼容旧配置格式（仍在开发中）；旧文件会被忽略并回落到默认值。
+> `host` 只填主机名或 IP，不要带 `wss://`、端口或 `/mqtt` 路径；端口和路径分别由 `port`、`wsPath` 控制。
 >
 > `topicBase` 只填 base（如 `taskops/todo`）；也接受直接粘贴完整主题 `taskops/todo/#`，
 > 不会重复拼成 `#/#`。填 `#` 表示订阅所有主题。
@@ -98,12 +100,12 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 
 | 传输 | 何时用 | 地址形如 |
 | --- | --- | --- |
-| **WebSocket** | **默认推荐**。push-server 的 Mosquitto 把 WS 开在 `0.0.0.0:9001`，局域网直接可用 | `ws://192.168.1.10:9001/mqtt` |
+| **WebSocket + TLS** | **默认**。公网入口，任何网络环境都能用 | `wss://push-server.o1-1.xct258.top/mqtt` |
+| WebSocket | 仅局域网直连 Mosquitto 的 9001 | `ws://192.168.1.10:9001/mqtt` |
 | TCP | 仅在 broker 与本机同机、或你已把 1883 改绑 `0.0.0.0` 时可用 | `mqtt://192.168.1.10:1883` |
-| WebSocket + TLS | 需要跨公网／不受信网络时。**必须自己在前端挂 TLS 终止**，Mosquitto 本身不提供 | `wss://notify.example.com:443/mqtt` |
 
 > **最容易踩的坑**：服务端默认的 TCP 1883 监听在 `127.0.0.1`，所以「直连 `mqtt://<内网IP>:1883`」
-> 一定会连接失败。客户端默认值已经是 WebSocket 9001，正常不会踩到；只有手工改成 TCP 才会。
+> 一定会连接失败。客户端默认值已经是公网 WSS，正常不会踩到；只有手工改成 TCP 才会。
 > 也可以把服务端配置改成 `listener 1883 0.0.0.0`。
 
 WSS 通常是 nginx 终止 TLS 之后再转发到 Mosquitto 的 WS 端口：
@@ -132,8 +134,8 @@ server {
 }
 ```
 
-此时客户端填：传输方式 `WebSocket + TLS`、地址 `notify.example.com`、端口 `443`、WS 路径 `/mqtt`。
-自签证书场景再勾上「允许不安全 TLS」。
+客户端默认配置就是：传输方式 `WebSocket + TLS`、地址 `push-server.o1-1.xct258.top`、
+端口 `443`、WS 路径 `/mqtt`。自签证书场景再勾上「允许不安全 TLS」。
 
 ---
 

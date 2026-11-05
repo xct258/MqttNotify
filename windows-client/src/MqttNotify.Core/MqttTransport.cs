@@ -65,6 +65,12 @@ public static class MqttTransportExtensions
             path = "/" + path;
         }
 
-        return $"{transport.Scheme()}://{displayHost}:{port}{path}";
+        // WSS 的 443 是 scheme 默认端口，省略后展示成更常见的形式：
+        // wss://push-server.o1-1.xct258.top/mqtt
+        var portPart = transport == MqttTransport.Wss && port == 443
+            ? string.Empty
+            : $":{port}";
+
+        return $"{transport.Scheme()}://{displayHost}{portPart}{path}";
     }
 }

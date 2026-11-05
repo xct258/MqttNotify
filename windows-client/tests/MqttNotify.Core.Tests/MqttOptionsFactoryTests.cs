@@ -72,7 +72,7 @@ public class MqttOptionsFactoryTests
         var options = Build(MqttTransport.Wss);
         var ws = Assert.IsType<MqttClientWebSocketOptions>(options.ChannelOptions);
 
-        Assert.Equal("wss://broker.local:443/mqtt", ws.Uri);
+        Assert.Equal("wss://broker.local/mqtt", ws.Uri);
         Assert.True(ws.TlsOptions?.UseTls);
     }
 

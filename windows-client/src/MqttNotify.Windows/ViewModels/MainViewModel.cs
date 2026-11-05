@@ -57,8 +57,8 @@ public sealed class MainViewModel : ObservableObject
         TransportOptions = new List<TransportOption>
         {
             new(MqttTransport.Tcp, "TCP", "mqtt://host:1883。注意 push-server 的 Mosquitto 把 1883 绑在 127.0.0.1，跨机连不上。"),
-            new(MqttTransport.Ws, "WebSocket", "ws://host:9001。push-server 默认对外开放的监听，局域网首选。"),
-            new(MqttTransport.Wss, "WebSocket + TLS", "wss://host:443/mqtt。需要自己在前面挂 TLS 终止（nginx/caddy）。"),
+            new(MqttTransport.Ws, "WebSocket", "ws://host:9001。局域网直连用，公网请用 WSS。"),
+            new(MqttTransport.Wss, "WebSocket + TLS", "wss://host/mqtt。默认走公网入口，443 可省略。"),
         };
 
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => CanSave, ReportError);

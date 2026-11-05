@@ -8,14 +8,20 @@ namespace MqttNotify.Core.Tests;
 public class AppSettingsTests
 {
     [Fact]
-    public void 默认使用对局域网可达的WebSocket与9001端口()
+    public void 默认使用公网WSS入口()
     {
         var settings = new AppSettings();
 
-        Assert.Equal(9001, settings.Port);
+        Assert.Equal("push-server.o1-1.xct258.top", settings.Host);
+        Assert.Equal(443, settings.Port);
+        Assert.Equal("/mqtt", settings.EffectiveWsPath);
         Assert.Equal("taskops/todo", settings.TopicBase);
         Assert.Equal("taskops/todo/#", settings.SubscribeTopic);
-        Assert.Equal(MqttTransport.Ws, settings.Transport);
+        Assert.Equal(MqttTransport.Wss, settings.Transport);
+        Assert.True(settings.IsValid);
+        Assert.Equal(
+            "wss://push-server.o1-1.xct258.top/mqtt",
+            settings.Transport.DisplayUrl(settings.Host, settings.Port, settings.EffectiveWsPath));
     }
 
     [Fact]
@@ -106,7 +112,7 @@ public class AppSettingsTests
     [Theory]
     [InlineData(MqttTransport.Tcp, "mqtt://h:1883")]
     [InlineData(MqttTransport.Ws, "ws://h:9001/mqtt")]
-    [InlineData(MqttTransport.Wss, "wss://h:443/mqtt")]
+    [InlineData(MqttTransport.Wss, "wss://h/mqtt")]
     public void 展示地址按传输方式拼装(MqttTransport transport, string expected)
     {
         Assert.Equal(expected, transport.DisplayUrl("h", transport.DefaultPort(), "/mqtt"));

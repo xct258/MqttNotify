@@ -28,7 +28,7 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 
 | 项 | 约定 |
 | --- | --- |
-| 端口 | MQTT over TCP `1883`、MQTT over WebSocket `9001`、FastAPI REST `8383` |
+| 端口 | MQTT over TCP `1883`、MQTT over WebSocket `9001`、WSS `443`、FastAPI REST `8383` |
 | 下行订阅 | `{base}/#`，`base` 默认 `taskops/todo` |
 | task_id | 主题的最后一段（尾段） |
 | payload | 明文 `【待办提醒】{title}\n{message}` |
@@ -38,7 +38,8 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 两边是同名类、同名测试用例，改一处必须改另一处。
 
 > 注意 push-server 自带的 Mosquitto 把 TCP `1883` 绑在 `127.0.0.1`（局域网访问不到），
-> 而 WebSocket `9001` 绑在 `0.0.0.0`。所以**两端客户端的默认传输方式都是 WebSocket 9001**，
+> 而 WebSocket `9001` 绑在 `0.0.0.0`。Android 客户端默认仍走 WebSocket 9001；
+> **Windows 客户端默认走公网 WSS `wss://push-server.o1-1.xct258.top/mqtt`**，
 > 具体见 `windows-client/README.md` §2.3。
 
 ## 预编译产物

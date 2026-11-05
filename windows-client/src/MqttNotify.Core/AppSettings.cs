@@ -14,11 +14,17 @@ namespace MqttNotify.Core;
 /// </summary>
 public sealed record AppSettings
 {
-    public const string DefaultHost = "";
-    public const int DefaultPort = 9001;
+    /// <summary>配置格式版本。开发期不做迁移：版本不一致时直接回落到默认配置。</summary>
+    public const int CurrentConfigVersion = 1;
+
+    public const string DefaultHost = "push-server.o1-1.xct258.top";
+    public const int DefaultPort = 443;
     public const string DefaultTopic = "taskops/todo";
     public const string DefaultServer = "taskops";
     public const string DefaultWsPath = "/mqtt";
+    public const MqttTransport DefaultTransport = MqttTransport.Wss;
+
+    public int ConfigVersion { get; init; } = CurrentConfigVersion;
 
     public string Host { get; init; } = DefaultHost;
 
@@ -37,10 +43,10 @@ public sealed record AppSettings
     public bool MinimizeToTrayOnClose { get; init; } = true;
 
     /// <summary>
-    /// 默认走 WebSocket：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
-    /// 跨机（含局域网）连不上；9001 才是对外监听的端口。
+    /// 默认走公网 WSS：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
+    /// 跨机（含局域网）连不上；公网入口是 `wss://push-server.o1-1.xct258.top/mqtt`。
     /// </summary>
-    public MqttTransport Transport { get; init; } = MqttTransport.Ws;
+    public MqttTransport Transport { get; init; } = DefaultTransport;
 
     public string WsPath { get; init; } = DefaultWsPath;
 

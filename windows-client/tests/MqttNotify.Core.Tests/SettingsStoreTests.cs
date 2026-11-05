@@ -11,18 +11,18 @@ namespace MqttNotify.Core.Tests;
 public class SettingsStoreTests
 {
     [Fact]
-    public void 读取手写小驼峰配置并接受注释和尾逗号()
+    public void 读取小驼峰配置()
     {
         var path = NewTempFile();
         try
         {
             File.WriteAllText(path, """
                 {
-                  // 用户手写：小驼峰字段名
+                  "configVersion": 1,
                   "host": "192.168.1.10",
                   "port": 9001,
                   "topicBase": "taskops/todo/#",
-                  "transport": "Ws",
+                  "transport": "Ws"
                 }
                 """);
 
@@ -56,6 +56,7 @@ public class SettingsStoreTests
             });
 
             var json = File.ReadAllText(path);
+            Assert.Contains("\"configVersion\": 1", json);
             Assert.Contains("\"host\"", json);
             Assert.DoesNotContain("\"Host\"", json);
 
@@ -73,23 +74,25 @@ public class SettingsStoreTests
     }
 
     [Fact]
-    public void 兼容旧版大驼峰配置()
+    public void 旧配置版本会回落到默认值()
     {
         var path = NewTempFile();
         try
         {
             File.WriteAllText(path, """
                 {
-                  "Host": "10.0.0.2",
-                  "Port": 9001,
-                  "TopicBase": "taskops/todo"
+                  "host": "old.example.com",
+                  "port": 9001,
+                  "transport": "Ws"
                 }
                 """);
 
             var settings = new JsonSettingsStore(path).Load();
+            var defaults = new AppSettings();
 
-            Assert.Equal("10.0.0.2", settings.Host);
-            Assert.Equal("taskops/todo", settings.TopicBase);
+            Assert.Equal(defaults.Host, settings.Host);
+            Assert.Equal(defaults.Port, settings.Port);
+            Assert.Equal(defaults.Transport, settings.Transport);
         }
         finally
         {

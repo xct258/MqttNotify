@@ -33,12 +33,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
-        // 旧版配置与手写配置可能用 host / Host 两种写法，读取时都认；
-        // 新写出的文件统一用小驼峰，和 README 的字段表一致。
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
         Converters = { new JsonStringEnumConverter() },
     };
 
@@ -56,7 +51,18 @@ public sealed class JsonSettingsStore : ISettingsStore
             }
 
             var json = File.ReadAllText(_filePath, Encoding.UTF8);
-            return JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings();
+
+            // AppSettings 的属性初始化器会给缺失的 ConfigVersion 填上当前值，
+            // 所以必须先在 JSON 层确认这个字段真的存在，才能识别旧配置。
+            using var document = JsonDocument.Parse(json);
+            if (!document.RootElement.TryGetProperty("configVersion", out var version) ||
+                !version.TryGetInt32(out var value) ||
+                value != AppSettings.CurrentConfigVersion)
+            {
+                return new AppSettings();
+            }
+
+            return document.RootElement.Deserialize<AppSettings>(Options) ?? new AppSettings();
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
