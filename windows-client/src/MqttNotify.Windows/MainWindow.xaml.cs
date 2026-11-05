@@ -1,7 +1,6 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
-using MqttNotify.Windows.ViewModels;
 
 namespace MqttNotify.Windows;
 
@@ -24,8 +23,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        // 托盘常驻应用的惯例：点 X 只是收进托盘，真正退出走托盘右键菜单
-        if (!_closeAllowed && DataContext is MainViewModel { MinimizeToTrayOnClose: true })
+        // 托盘常驻应用：点 X 只收进托盘，真正退出走托盘右键菜单。
+        if (!_closeAllowed)
         {
             e.Cancel = true;
             Hide();

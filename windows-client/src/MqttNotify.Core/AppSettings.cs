@@ -56,9 +56,6 @@ public sealed record AppSettings
     /// <summary>开机自启（写注册表 Run 项）。</summary>
     public bool AutoStartOnBoot { get; init; } = true;
 
-    /// <summary>点关闭按钮时收进托盘而不是退出（托盘常驻应用的默认行为）。</summary>
-    public bool MinimizeToTrayOnClose { get; init; } = true;
-
     /// <summary>
     /// 默认走公网 WSS：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
     /// 跨机（含局域网）连不上；公网入口是 `wss://push-server.o1-1.xct258.top/mqtt`。

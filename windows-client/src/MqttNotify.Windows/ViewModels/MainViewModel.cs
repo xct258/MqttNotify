@@ -44,7 +44,6 @@ public sealed class MainViewModel : ObservableObject
     private TransportOption _selectedTransport = null!;
     private bool _allowInsecureTls;
     private bool _autoStartOnBoot = true;
-    private bool _minimizeToTrayOnClose = true;
 
     private ConnectionStatus _status = ConnectionStatus.Stopped;
     private string _statusDetail = string.Empty;
@@ -185,12 +184,6 @@ public sealed class MainViewModel : ObservableObject
         set => SetProperty(ref _autoStartOnBoot, value);
     }
 
-    public bool MinimizeToTrayOnClose
-    {
-        get => _minimizeToTrayOnClose;
-        set => SetProperty(ref _minimizeToTrayOnClose, value);
-    }
-
     public bool IsWebSocketTransport => SelectedTransport.Value.IsWebSocket();
 
     public bool IsTlsTransport => SelectedTransport.Value.IsTls();
@@ -325,7 +318,6 @@ public sealed class MainViewModel : ObservableObject
         _wsPath = settings.EffectiveWsPath;
         _allowInsecureTls = settings.AllowInsecureTls;
         _autoStartOnBoot = settings.AutoStartOnBoot;
-        _minimizeToTrayOnClose = settings.MinimizeToTrayOnClose;
         _savedSettings = settings;
 
         OnPropertyChanged(nameof(Host));
@@ -337,7 +329,6 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedTransport));
         OnPropertyChanged(nameof(AllowInsecureTls));
         OnPropertyChanged(nameof(AutoStartOnBoot));
-        OnPropertyChanged(nameof(MinimizeToTrayOnClose));
         RaiseDerived();
     }
 
@@ -350,7 +341,6 @@ public sealed class MainViewModel : ObservableObject
         ClientId = ClientId,
         ClientIdSuffix = _clientIdSuffix,
         AutoStartOnBoot = AutoStartOnBoot,
-        MinimizeToTrayOnClose = MinimizeToTrayOnClose,
         Transport = SelectedTransport.Value,
         WsPath = WsPath,
         AllowInsecureTls = AllowInsecureTls,

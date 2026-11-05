@@ -143,9 +143,7 @@
                             <!-- 开关 -->
                             <StackPanel Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,14">
                                 <CheckBox Content="开机自动启动（当前用户，无需管理员权限）"
-                                          IsChecked="{Binding AutoStartOnBoot}" Margin="0,0,0,8" />
-                                <CheckBox Content="关闭窗口时收进托盘，而不是退出程序"
-                                          IsChecked="{Binding MinimizeToTrayOnClose}" />
+                                          IsChecked="{Binding AutoStartOnBoot}" />
                             </StackPanel>
 
                             <!-- 保存 -->

@@ -91,7 +91,6 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 | `clientIdSuffix` | 首次启动生成 | 安装期固定随机后缀；清空配置/重装后才会变化 |
 | `allowInsecureTls` | `false` | 仅 WSS：跳过证书链与主机名校验（内网自签证书用） |
 | `autoStartOnBoot` | `true` | 写 `HKCU` 的 Run 项，不需要管理员权限 |
-| `minimizeToTrayOnClose` | `true` | 点 X 收进托盘而不是退出 |
 
 > 配置文件使用小驼峰字段名，不兼容旧配置格式（仍在开发中）；旧文件会被忽略并回落到默认值。
 > `host` 只填主机名或 IP，不要带 `wss://`、端口或 `/mqtt` 路径；端口和路径分别由 `port`、`wsPath` 控制。
