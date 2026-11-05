@@ -24,6 +24,17 @@ public class AppSettingsTests
         Assert.Equal("a/b/#", new AppSettings { TopicBase = "a/b" }.SubscribeTopic);
         Assert.Equal("a/b/#", new AppSettings { TopicBase = "a/b/" }.SubscribeTopic);
         Assert.Equal("a/b/#", new AppSettings { TopicBase = "  a/b//  " }.SubscribeTopic);
+        // 直接粘贴完整通配主题时，不能二次拼接成非法的 a/b/#/#
+        Assert.Equal("a/b/#", new AppSettings { TopicBase = "a/b/#" }.SubscribeTopic);
+        Assert.Equal("#", new AppSettings { TopicBase = "#" }.SubscribeTopic);
+        Assert.Equal("#", new AppSettings { TopicBase = "  #  " }.SubscribeTopic);
+    }
+
+    [Fact]
+    public void normalized会去掉用户粘贴的通配符尾缀()
+    {
+        Assert.Equal("a/b", new AppSettings { TopicBase = "a/b/#" }.Normalized().TopicBase);
+        Assert.Equal("#", new AppSettings { TopicBase = " # " }.Normalized().TopicBase);
     }
 
     [Fact]

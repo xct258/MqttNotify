@@ -201,7 +201,7 @@ public sealed class MainViewModel : ObservableObject
         SelectedTransport.Value.DisplayUrl(Host, ParsedPort ?? AppSettings.DefaultPort, WsPath);
 
     public string SubscribeTopicPreview =>
-        $"{TopicBase.Trim().TrimEnd('/')}/#";
+        AppSettings.BuildSubscribeTopic(TopicBase);
 
     public int? ParsedPort =>
         int.TryParse(Port, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : null;

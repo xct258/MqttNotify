@@ -64,8 +64,38 @@ public sealed record AppSettings
         }
     }
 
-    /// <summary>通配订阅主题，例如 <c>taskops/todo/#</c>。</summary>
-    public string SubscribeTopic => $"{TopicBase.Trim().TrimEnd('/')}/#";
+    /// <summary>
+    /// 规范化订阅主题的 base：
+    /// 既接受 <c>taskops/todo</c>，也接受用户直接粘贴 <c>taskops/todo/#</c>，
+    /// 避免再拼一次变成非法的 <c>taskops/todo/#/#</c>。
+    /// 单独的 <c>#</c> 表示订阅所有主题，原样保留。
+    /// </summary>
+    public static string NormalizeTopicBase(string topicBase)
+    {
+        var topic = topicBase.Trim().TrimEnd('/');
+
+        if (topic == "#")
+        {
+            return "#";
+        }
+
+        if (topic.EndsWith("/#", StringComparison.Ordinal))
+        {
+            topic = topic[..^2].TrimEnd('/');
+        }
+
+        return topic;
+    }
+
+    /// <summary>根据 base 生成实际订阅的通配主题。</summary>
+    public static string BuildSubscribeTopic(string topicBase)
+    {
+        var topic = NormalizeTopicBase(topicBase);
+        return topic.Length == 0 || topic == "#" ? "#" : $"{topic}/#";
+    }
+
+    /// <summary>通配订阅主题，例如 <c>taskops/todo/#</c>；base 填 <c>#</c> 时为 <c>#</c>。</summary>
+    public string SubscribeTopic => BuildSubscribeTopic(TopicBase);
 
     /// <summary>是否已配置到可连接的程度。</summary>
     public bool IsValid =>
@@ -77,7 +107,7 @@ public sealed record AppSettings
     public AppSettings Normalized() => this with
     {
         Host = Host.Trim(),
-        TopicBase = TopicBase.Trim().TrimEnd('/'),
+        TopicBase = NormalizeTopicBase(TopicBase),
         ServerName = ServerName.Trim(),
         ClientId = ClientId.Trim(),
         WsPath = EffectiveWsPath,

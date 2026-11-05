@@ -88,6 +88,12 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 | `autoStartOnBoot` | `true` | 写 `HKCU` 的 Run 项，不需要管理员权限 |
 | `minimizeToTrayOnClose` | `true` | 点 X 收进托盘而不是退出 |
 
+> 配置文件使用小驼峰字段名，读取时也兼容旧版大驼峰，并允许手写注释和尾逗号。
+> `host` 只填主机名或 IP，不要带 `ws://`、端口或 `/mqtt` 路径；端口和路径分别由 `port`、`wsPath` 控制。
+>
+> `topicBase` 只填 base（如 `taskops/todo`）；也接受直接粘贴完整主题 `taskops/todo/#`，
+> 不会重复拼成 `#/#`。填 `#` 表示订阅所有主题。
+
 ### 2.3 传输方式怎么选
 
 | 传输 | 何时用 | 地址形如 |

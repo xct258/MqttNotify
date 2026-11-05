@@ -33,6 +33,12 @@ public sealed class JsonSettingsStore : ISettingsStore
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+        // 旧版配置与手写配置可能用 host / Host 两种写法，读取时都认；
+        // 新写出的文件统一用小驼峰，和 README 的字段表一致。
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
         Converters = { new JsonStringEnumConverter() },
     };
 
