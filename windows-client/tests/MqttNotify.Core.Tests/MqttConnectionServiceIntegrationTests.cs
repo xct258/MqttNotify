@@ -131,21 +131,24 @@ public class MqttConnectionServiceIntegrationTests
 
         await using var service = NewService();
         var failures = 0;
+        var retried = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         service.StatusChanged += (_, snapshot) =>
         {
-            if (snapshot.Status == ConnectionStatus.Failed)
+            if (snapshot.Status == ConnectionStatus.Failed &&
+                Interlocked.Increment(ref failures) >= 2)
             {
-                Interlocked.Increment(ref failures);
+                retried.TrySetResult();
             }
         };
 
         await service.ApplySettingsAsync(Settings(port));
 
-        // 退避 50ms→100ms→200ms 封顶，2 秒内应发生多次重试
-        await Task.Delay(TimeSpan.FromSeconds(2));
+        // 退避 50ms→100ms→200ms 封顶；等第 2 次失败，而不是死等固定 2 秒。
+        // Windows CI 首次建连的线程调度可能更慢，固定时间断言会误报。
+        await retried.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         var count = Volatile.Read(ref failures);
-        _output.WriteLine($"2 秒内失败重试 {count} 次");
+        _output.WriteLine($"检测到失败重试 {count} 次");
         Assert.True(count >= 2, $"预期持续重试，实际只失败 {count} 次");
         Assert.Equal(ConnectionStatus.Failed, service.Status.Status);
     }
