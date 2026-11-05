@@ -3,64 +3,80 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MQTT 提醒"
         Icon="Assets/MqttNotify.ico"
-        Height="680" Width="960" MinHeight="520" MinWidth="780"
+        Height="720" Width="1040" MinHeight="600" MinWidth="880"
         WindowStartupLocation="CenterScreen"
-        Background="#F4F5F7"
-        FontFamily="Microsoft YaHei UI, Segoe UI"
-        FontSize="13">
+        Background="#F3F5FB"
+        FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
+        FontSize="13"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- ============================ 连接状态 ============================ -->
-        <Border Grid.Row="0" Margin="16,16,16,0" Padding="16,14"
-                Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="6">
-            <Grid>
+        <!-- ============================ 顶部状态 ============================ -->
+        <Border Grid.Row="0" Margin="20,18,20,0" CornerRadius="18"
+                Background="{StaticResource HeroGradient}"
+                Effect="{StaticResource HeroShadow}">
+            <Grid Margin="24,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Ellipse Width="12" Height="12" VerticalAlignment="Center"
-                         Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
+                <Border Width="52" Height="52" CornerRadius="16"
+                        Background="#26FFFFFF" BorderBrush="#40FFFFFF" BorderThickness="1"
+                        VerticalAlignment="Center">
+                    <Path Data="M2,12 L22,2 L14,22 L11,13 Z"
+                          Fill="White" Stretch="Uniform" Margin="13" />
+                </Border>
 
-                <StackPanel Grid.Column="1" Margin="12,0,16,0">
-                    <TextBlock Text="{Binding StatusText}" FontSize="17" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding StatusDetail}" Foreground="#616161"
-                               TextWrapping="Wrap" Margin="0,2,0,0" />
+                <StackPanel Grid.Column="1" Margin="16,0,20,0" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="9" Height="9" Margin="0,0,9,0" VerticalAlignment="Center"
+                                 Stroke="White" StrokeThickness="1"
+                                 Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
+                        <TextBlock Text="{Binding StatusText}" FontSize="23" FontWeight="Bold"
+                                   Foreground="White" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding StatusDetail}" Foreground="#E0E7FF"
+                               FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="启动接收" Command="{Binding StartCommand}" Padding="14,6" Margin="0,0,8,0" />
-                    <Button Content="停止接收" Command="{Binding StopCommand}" Padding="14,6" />
+                    <Button Content="启动接收" Command="{Binding StartCommand}"
+                            Style="{StaticResource HeroButton}" Margin="0,0,10,0" />
+                    <Button Content="停止接收" Command="{Binding StopCommand}"
+                            Style="{StaticResource HeroButton}" />
                 </StackPanel>
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="16">
+        <Grid Grid.Row="1" Margin="20,18,20,20">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.15*" MinWidth="380" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="1*" MinWidth="300" />
+                <ColumnDefinition Width="1.15*" MinWidth="430" />
+                <ColumnDefinition Width="18" />
+                <ColumnDefinition Width="1*" MinWidth="340" />
             </Grid.ColumnDefinitions>
 
             <!-- ============================ 设置 ============================ -->
-            <Border Grid.Column="0" Padding="16" Background="White"
-                    BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="6">
+            <Border Grid.Column="0" Style="{StaticResource Card}" Padding="22">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Text="连接设置" />
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+                        <TextBlock Text="连接设置" Style="{StaticResource SectionHeader}" Margin="0" />
+                        <TextBlock Text="配置 MQTT Broker、订阅主题与设备身份" Style="{StaticResource Hint}" />
+                    </StackPanel>
 
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" MinWidth="104" />
+                                <ColumnDefinition Width="112" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -82,77 +98,78 @@
                                       DisplayMemberPath="Display" />
 
                             <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource Hint}"
-                                       Text="{Binding TransportHint}" Margin="0,0,0,14" />
+                                       Text="{Binding TransportHint}" Margin="0,0,0,16" />
 
                             <!-- Broker 地址 + 端口 -->
                             <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Broker 地址" />
-                            <DockPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,10">
+                            <DockPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
                                 <TextBlock DockPanel.Dock="Right" Style="{StaticResource FieldLabel}"
-                                           Text="端口" Margin="12,0,8,0" />
-                                <TextBox DockPanel.Dock="Right" Width="80"
+                                           Text="端口" Margin="14,0,8,0" />
+                                <TextBox DockPanel.Dock="Right" Width="84"
                                          Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" />
                             </DockPanel>
 
                             <!-- 连接地址预览 -->
                             <TextBlock Grid.Row="3" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="连接地址" />
-                            <Border Grid.Row="3" Grid.Column="1" Margin="0,0,0,10" Padding="8,5"
-                                    Background="#F7F9FA" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="3">
+                            <Border Grid.Row="3" Grid.Column="1" Margin="0,0,0,12" Padding="11,9"
+                                    Background="#F8FAFC" BorderBrush="#E5EAF3" BorderThickness="1" CornerRadius="9">
                                 <TextBlock Text="{Binding EndpointPreview}" FontFamily="Consolas, Microsoft YaHei UI"
-                                           TextWrapping="Wrap" Foreground="#37474F" />
+                                           FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource Accent}" />
                             </Border>
 
                             <!-- WebSocket 路径（仅 WS/WSS） -->
                             <TextBlock Grid.Row="4" Grid.Column="0" Style="{StaticResource FieldLabel}"
                                        Text="WS 路径"
                                        Visibility="{Binding IsWebSocketTransport, Converter={StaticResource BoolToVisibility}}" />
-                            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,10"
+                            <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,12"
                                         Visibility="{Binding IsWebSocketTransport, Converter={StaticResource BoolToVisibility}}">
                                 <TextBox Text="{Binding WsPath, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0"
                                            Text="Mosquitto 自身忽略路径；经 nginx / caddy 转发时按 location 匹配，默认 /mqtt。" />
                             </StackPanel>
 
                             <!-- 自签证书（仅 WSS） -->
-                            <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,0,0,14" Content="允许不安全 TLS（跳过证书链与主机名校验）"
+                            <CheckBox Grid.Row="5" Grid.Column="1" Margin="0,0,0,16"
+                                      Content="允许不安全 TLS（跳过证书链与主机名校验）"
                                       IsChecked="{Binding AllowInsecureTls}"
                                       Visibility="{Binding IsTlsTransport, Converter={StaticResource BoolToVisibility}}" />
 
                             <!-- 订阅主题 -->
                             <TextBlock Grid.Row="6" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="订阅主题 base" />
-                            <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,10">
+                            <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,12">
                                 <TextBox Text="{Binding TopicBase, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0">
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0">
                                     <Run Text="实际订阅：" />
-                                    <Run Text="{Binding SubscribeTopicPreview, Mode=OneWay}" />
+                                    <Run Text="{Binding SubscribeTopicPreview, Mode=OneWay}" Foreground="{StaticResource Accent}" />
                                 </TextBlock>
                             </StackPanel>
 
                             <!-- 来源服务名 -->
                             <TextBlock Grid.Row="7" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="来源服务名" />
-                            <TextBox Grid.Row="7" Grid.Column="1" Margin="0,0,0,10"
+                            <TextBox Grid.Row="7" Grid.Column="1" Margin="0,0,0,12"
                                      Text="{Binding ServerName, UpdateSourceTrigger=PropertyChanged}" />
 
                             <!-- Client ID -->
                             <TextBlock Grid.Row="8" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Client ID" />
-                            <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,0,0,14">
+                            <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,0,0,16">
                                 <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                <TextBlock Style="{StaticResource Hint}" Margin="0,5,0,0"
                                            Text="这里填自定义前缀，最终 ID = 前缀_固定随机串；留空则为 windows_xxxxxxxx。两台机器不要用相同前缀。" />
                             </StackPanel>
 
                             <!-- 开关 -->
-                            <StackPanel Grid.Row="9" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,14">
-                                <CheckBox Content="开机自动启动（当前用户，无需管理员权限）"
-                                          IsChecked="{Binding AutoStartOnBoot}" />
-                            </StackPanel>
+                            <CheckBox Grid.Row="9" Grid.Column="1" Margin="0,0,0,18"
+                                      Content="开机自动启动（当前用户，无需管理员权限）"
+                                      IsChecked="{Binding AutoStartOnBoot}" />
 
                             <!-- 保存 -->
                             <StackPanel Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal">
-                                <Button Content="保存并重连" Command="{Binding SaveCommand}" Padding="16,7"
-                                        FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding StatusMessage}" Foreground="#EF6C00"
-                                           VerticalAlignment="Center" Margin="12,0,0,0" TextWrapping="Wrap">
+                                <Button Content="保存并重连" Command="{Binding SaveCommand}"
+                                        Style="{StaticResource PrimaryButton}" />
+                                <TextBlock Text="{Binding StatusMessage}" Foreground="#D97706"
+                                           VerticalAlignment="Center" Margin="14,0,0,0" TextWrapping="Wrap"
+                                           FontSize="12">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Visible" />
@@ -171,61 +188,75 @@
             </Border>
 
             <!-- ============================ 最近提醒 ============================ -->
-            <Border Grid.Column="2" Padding="16" Background="White"
-                    BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="6">
+            <Border Grid.Column="2" Style="{StaticResource Card}" Padding="22">
                 <DockPanel>
-                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="最近提醒" Margin="0" />
-                        <Button Content="清空" HorizontalAlignment="Right" Padding="10,3"
-                                Command="{Binding ClearAlertsCommand}" />
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="最近提醒" Style="{StaticResource SectionHeader}" Margin="0" />
+                            <TextBlock Text="仅本次运行内保留，最多 100 条（不落盘）" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                        <Button Content="清空" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Command="{Binding ClearAlertsCommand}"
+                                Style="{StaticResource GhostButton}" />
                     </Grid>
-
-                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8"
-                               Text="仅本次运行内保留，最多 100 条（不落盘）。">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource Hint}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasAlerts}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
 
                     <Grid>
                         <ListBox ItemsSource="{Binding Alerts}"
                                  BorderThickness="0" Background="Transparent"
                                  HorizontalContentAlignment="Stretch"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0,0,0,10" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="6,6" BorderBrush="#EEEEEE" BorderThickness="0,0,0,1">
+                                    <Border Padding="13,11" CornerRadius="12"
+                                            Background="#F8FAFC" BorderBrush="#E8EDF6" BorderThickness="1">
                                         <StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock FontSize="11" Foreground="#9E9E9E"
-                                                           Text="{Binding ReceivedAt, StringFormat='{}{0:HH:mm:ss}'}" />
-                                                <TextBlock FontSize="11" Foreground="#9E9E9E" Margin="8,0,0,0"
-                                                           Text="{Binding TaskId, StringFormat='#{0}'}" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
-                                                       TextWrapping="Wrap" Margin="0,2,0,0" />
+                                            <DockPanel>
+                                                <Border DockPanel.Dock="Right" Padding="8,2" CornerRadius="6"
+                                                        Background="{StaticResource AccentSoft}">
+                                                    <TextBlock Text="{Binding Topic}" FontSize="10"
+                                                               Foreground="{StaticResource Accent}"
+                                                               TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                                                </Border>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="6" Height="6" Fill="{StaticResource Accent}"
+                                                             VerticalAlignment="Center" Margin="0,0,7,0" />
+                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMuted}"
+                                                               Text="{Binding ReceivedAt, StringFormat='{}{0:HH:mm:ss}'}" />
+                                                    <TextBlock FontSize="11" Foreground="{StaticResource TextMuted}"
+                                                               Margin="8,0,0,0"
+                                                               Text="{Binding TaskId, StringFormat='#{0}'}" />
+                                                </StackPanel>
+                                            </DockPanel>
+
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13.5"
+                                                       Foreground="{StaticResource TextPrimary}"
+                                                       TextWrapping="Wrap" Margin="0,8,0,0" />
                                             <TextBlock Text="{Binding Body}" TextWrapping="Wrap"
-                                                       Foreground="#455A64" Margin="0,2,0,0" />
-                                            <TextBlock Text="{Binding Topic}" FontSize="10"
-                                                       Foreground="#BDBDBD" Margin="0,3,0,0"
-                                                       TextTrimming="CharacterEllipsis" />
+                                                       Foreground="{StaticResource TextSecondary}"
+                                                       FontSize="12.5" LineHeight="19" Margin="0,4,0,0" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
 
-                        <TextBlock Text="还没有收到提醒" Foreground="#BDBDBD"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasAlerts}" Value="False">
@@ -233,8 +264,17 @@
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                            </StackPanel.Style>
+                            <Border Width="52" Height="52" CornerRadius="16" Background="{StaticResource AccentSoft}"
+                                    HorizontalAlignment="Center">
+                                <Path Data="M2,12 L22,2 L14,22 L11,13 Z" Fill="{StaticResource Accent}"
+                                      Stretch="Uniform" Margin="14" />
+                            </Border>
+                            <TextBlock Text="还没有收到提醒" Foreground="{StaticResource TextMuted}"
+                                       Margin="0,12,0,0" HorizontalAlignment="Center" />
+                            <TextBlock Text="连接成功并收到推送后会显示在这里" Foreground="#CBD5E1"
+                                       FontSize="11" Margin="0,4,0,0" HorizontalAlignment="Center" />
+                        </StackPanel>
                     </Grid>
                 </DockPanel>
             </Border>

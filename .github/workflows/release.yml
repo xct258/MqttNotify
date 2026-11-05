@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag，例如 v1.0.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows build
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test windows-client/tests/MqttNotify.Core.Tests -c Release
+
+      - name: Publish framework-dependent
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $version = $tag.TrimStart('v')
+          dotnet publish windows-client/src/MqttNotify.Windows -c Release -r win-x64 `
+            --self-contained false -p:PublishSingleFile=true -p:Version=$version `
+            -o "$env:RUNNER_TEMP\win-fd"
+          New-Item -ItemType Directory -Force -Path windows-client/artifacts | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\win-fd\MqttNotify.exe" `
+            windows-client/artifacts/MqttNotify-Windows-x64.exe
+
+      - name: Publish self-contained
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $version = $tag.TrimStart('v')
+          dotnet publish windows-client/src/MqttNotify.Windows -c Release -r win-x64 `
+            --self-contained true -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:Version=$version `
+            -o "$env:RUNNER_TEMP\win-sc"
+          Copy-Item "$env:RUNNER_TEMP\win-sc\MqttNotify.exe" `
+            windows-client/artifacts/MqttNotify-Windows-x64-self-contained.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: windows-client/artifacts/*.exe
+          if-no-files-found: error
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Test and build debug APK
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          gradle :app:testDebugUnitTest :app:assembleDebug \
+            -PappVersionName="$VERSION" \
+            -PappVersionCode="${GITHUB_RUN_NUMBER}"
+        working-directory: android-client
+
+      - name: Collect APK
+        run: |
+          mkdir -p android-client/artifacts
+          cp android-client/app/build/outputs/apk/debug/app-debug.apk \
+            android-client/artifacts/MqttNotify-Android-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: android-client/artifacts/MqttNotify-Android-debug.apk
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [windows, android]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum *.exe *.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: MqttNotify ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/MqttNotify-Windows-x64.exe
+            release/MqttNotify-Windows-x64-self-contained.exe
+            release/MqttNotify-Android-debug.apk
+            release/SHA256SUMS.txt

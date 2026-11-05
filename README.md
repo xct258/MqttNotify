@@ -12,7 +12,7 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 .
 ├── android-client/      Android 客户端（Kotlin + Jetpack Compose）
 ├── windows-client/      Windows 客户端（C# + WPF，.NET 10）
-└── dist/                预编译产物（刻意提交，方便直接取用，见下）
+└── .github/workflows/   GitHub Actions：打 tag 后自动构建并发布 Release
 ```
 
 两端各自的说明与验收清单在各自目录下：
@@ -33,7 +33,7 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 | task_id | 主题的最后一段（尾段） |
 | payload | 明文 `【待办提醒】{title}\n{message}` |
 | 订阅参数 | QoS 1、`retained = false`、clean session、KeepAlive 60s、匿名（无账号密码） |
-| 在线状态 | 连接后向 `$presence/clients/{client_id}` 发布 retained JSON；30s 心跳，Will 标记离线 |
+| 在线状态 | 连接后向 `$presence/clients/{client_id}` 发布 retained JSON；60s 心跳，Will 标记离线 |
 | Client ID | `{自定义前缀或 windows/android}_{安装期固定随机 8 位}`；后缀是设备唯一标识，清空数据/重装后才会变化 |
 
 解析口径以两端的 `MqttMessageParser` 为准（Android 为 `.kt`，Windows 为 `.cs`），
@@ -43,18 +43,22 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 > 而 WebSocket `9001` 绑在 `0.0.0.0`。**两端客户端现在默认都走公网 WSS
 > `wss://push-server.o1-1.xct258.top/mqtt`**，局域网内可以手工切回 WebSocket 9001。
 
-## 预编译产物
+## 下载与发布
 
-`dist/` 下的文件是从本仓库源码构建出来的，**为了能直接取用而刻意提交进仓库**
-（不随 `git clone` 之外的机制分发）：
+正式版本走 **GitHub Releases**，不再把二进制提交进仓库：
 
-| 文件 | 大小 | 说明 |
-| --- | --- | --- |
-| `dist/MqttNotify-Android-debug.apk` | 约 19 MB | debug 签名，可直接侧载安装 |
-| `dist/MqttNotify-Windows-x64.exe` | 约 780 KB | 依赖框架单文件，需预装 **.NET 10 Desktop Runtime** |
+https://github.com/xct258/MqttNotify/releases
 
-产物是**快照**：源码更新后需要重新构建才会同步。不希望仓库里带大二进制的话，
-删掉 `dist/` 并改走 GitHub Releases 挂附件即可。
+发布由 `.github/workflows/release.yml` 自动完成：
+
+- 推送 `v*` tag（例如 `v1.0.0`），或手动运行 Actions 的 **Release** workflow
+- 自动构建并上传：
+  - `MqttNotify-Windows-x64.exe`：依赖框架单文件，需装 .NET 10 Desktop Runtime
+  - `MqttNotify-Windows-x64-self-contained.exe`：自包含，免装运行时，体积较大
+  - `MqttNotify-Android-debug.apk`：debug 签名，可直接侧载
+  - `SHA256SUMS.txt`：文件校验和
+
+本地构建产物请放 `dist/` 或 `artifacts/`，两者都已加入 `.gitignore`。
 
 ## 从源码构建
 

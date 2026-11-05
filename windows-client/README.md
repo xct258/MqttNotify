@@ -40,7 +40,8 @@
 
 ### 2.1 运行
 
-仓库 `dist/` 提供的是**依赖框架单文件**版（约 780 KB），目标机器需要先安装
+GitHub Releases 提供**依赖框架单文件**版（约 800 KB）和**自包含版**（约 72 MB）。
+依赖框架版目标机器需要先安装
 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)（Windows x64）：
 
 ```bash
@@ -65,9 +66,9 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 
 | 方式 | 体积 | 目标机器要求 | 说明 |
 | --- | --- | --- | --- |
-| 依赖框架 | **780 KB** | 需装 .NET 10 桌面运行时 | **本仓库 dist 采用**，体积最小 |
-| 自包含 + 压缩 | 72 MB | 无 | 免装运行时；启动时需解压，首启略慢 |
-| 自包含 | 166 MB | 无 | 启动最快，体积最大 |
+| 依赖框架 | **约 800 KB** | 需装 .NET 10 桌面运行时 | **Release 默认提供**，体积最小 |
+| 自包含 + 压缩 | 约 72 MB | 无 | **Release 同时提供**；启动时需解压，首启略慢 |
+| 自包含 | 约 166 MB | 无 | 启动最快，体积最大 |
 
 注意 WPF **不支持** `PublishTrimmed`，别指望靠裁剪把自包含体积压下去。
 

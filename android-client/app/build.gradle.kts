@@ -12,8 +12,8 @@ android {
         applicationId = "com.xct258.mqttnotify"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = providers.gradleProperty("appVersionCode").getOrElse("1").toInt()
+        versionName = providers.gradleProperty("appVersionName").getOrElse("1.0.0")
 
         vectorDrawables {
             useSupportLibrary = true

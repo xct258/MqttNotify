@@ -8,6 +8,9 @@
 - 连接方式：MQTT 3.1.1 over **TCP / WebSocket(WS) / WebSocket+TLS(WSS)**
 
 > 测试方法（单元测试 / 协议联调 / 真机验收清单）见 [TESTING.md](TESTING.md)。
+>
+> 发布 APK 走 [GitHub Releases](https://github.com/xct258/MqttNotify/releases)；
+> 当前 Release 产物是 debug 签名，可直接侧载。
 
 ---
 
