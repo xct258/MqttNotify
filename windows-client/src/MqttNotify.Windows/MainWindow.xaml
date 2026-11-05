@@ -137,7 +137,7 @@
                             <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,0,0,14">
                                 <TextBox Text="{Binding ClientId, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
-                                           Text="这里填自定义前缀，最终 ID = 前缀-固定随机串；留空则为 windows-xxxxxxxx。两台机器不要用相同前缀。" />
+                                           Text="这里填自定义前缀，最终 ID = 前缀_固定随机串；留空则为 windows_xxxxxxxx。两台机器不要用相同前缀。" />
                             </StackPanel>
 
                             <!-- 开关 -->

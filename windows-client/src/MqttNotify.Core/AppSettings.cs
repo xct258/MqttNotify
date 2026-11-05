@@ -7,7 +7,7 @@ namespace MqttNotify.Core;
 ///   <item><see cref="Host"/> / <see cref="Port"/> / <see cref="Transport"/>：broker 地址与传输方式；</item>
 ///   <item><see cref="TopicBase"/>：下行主题的 base，默认 <c>taskops/todo</c>；实际订阅 <see cref="SubscribeTopic"/>；</item>
 ///   <item><see cref="ServerName"/>：来源服务名（如 taskops），预留给后续 REST 补拉；</item>
-///   <item><see cref="ClientId"/>：自定义 Client ID 前缀；最终 ID 为 <c>{前缀}-{固定随机后缀}</c>，留空前缀时为 <c>windows-xxxxxxxx</c>；</item>
+///   <item><see cref="ClientId"/>：自定义 Client ID 前缀；最终 ID 为 <c>{前缀}_{固定随机后缀}</c>，留空前缀时为 <c>windows_xxxxxxxx</c>；</item>
 ///   <item><see cref="WsPath"/>：WS/WSS 的 serverPath（默认 <c>/mqtt</c>）；</item>
 ///   <item><see cref="AllowInsecureTls"/>：WSS 下跳过证书链与主机名校验（仅内网自签证书用）。</item>
 /// </list>
@@ -40,14 +40,14 @@ public sealed record AppSettings
     /// <summary>安装时生成并持久化的随机后缀，清空配置/重装后才会变化。</summary>
     public string ClientIdSuffix { get; init; } = string.Empty;
 
-    /// <summary>最终 MQTT Client ID：<c>{自定义或 windows}-{固定随机后缀}</c>。</summary>
+    /// <summary>最终 MQTT Client ID：<c>{自定义或 windows}_{固定随机后缀}</c>。</summary>
     public string EffectiveClientId
     {
         get
         {
             var prefix = string.IsNullOrWhiteSpace(ClientId) ? "windows" : ClientId.Trim();
             var suffix = ClientIdSuffix.Trim();
-            return suffix.Length == 0 ? prefix : $"{prefix}-{suffix}";
+            return suffix.Length == 0 ? prefix : $"{prefix}_{suffix}";
         }
     }
 

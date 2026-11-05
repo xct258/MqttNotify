@@ -35,7 +35,7 @@ public class SettingsStoreTests
             Assert.Equal("taskops/todo/#", settings.SubscribeTopic);
             Assert.Equal(MqttTransport.Ws, settings.Transport);
             Assert.Equal("abcd1234", settings.ClientIdSuffix);
-            Assert.Equal("windows-abcd1234", settings.EffectiveClientId);
+            Assert.Equal("windows_abcd1234", settings.EffectiveClientId);
         }
         finally
         {

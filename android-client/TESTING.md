@@ -182,7 +182,7 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
    收不到 → 是服务端/主题的问题，不是客户端。
 2. **主题对不上**：App 里「订阅主题」要等于服务端 `PUSH_TOPIC`（默认 `taskops/todo`），
    实际订阅的是 `<主题>/#`。填成 `taskops/todo/7` 就收不到了。
-3. **Client ID 冲突**：两个客户端用同一个前缀会互相顶掉。最终 ID 是 `前缀-固定随机串`，留空前缀则自动使用 `android-xxxxxxxx`。
+3. **Client ID 冲突**：两个客户端用同一个前缀会互相顶掉。最终 ID 是 `前缀_固定随机串`，留空前缀则自动使用 `android_xxxxxxxx`。
 4. **连不上 broker**：内网不通 / 端口不是 1883 / 手机与 broker 不同网段。
 5. **连上了收不到**：QoS 1 正常；确认消息是 `retained=false` 的实时推送，
    离线期间的消息本来就**不会补发**（要靠 REST 补拉，首版未接入）。

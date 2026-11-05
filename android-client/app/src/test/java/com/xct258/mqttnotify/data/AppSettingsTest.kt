@@ -51,11 +51,11 @@ class AppSettingsTest {
     @Test
     fun `客户端 ID 由自定义前缀和固定随机后缀组成`() {
         assertEquals(
-            "android-abcd1234",
+            "android_abcd1234",
             AppSettings(clientIdSuffix = "abcd1234").effectiveClientId,
         )
         assertEquals(
-            "my-phone-abcd1234",
+            "my-phone_abcd1234",
             AppSettings(clientId = " my-phone ", clientIdSuffix = "abcd1234").effectiveClientId,
         )
     }

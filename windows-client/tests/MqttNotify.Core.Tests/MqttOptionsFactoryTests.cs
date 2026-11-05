@@ -159,9 +159,11 @@ public class MqttOptionsFactoryTests
     [Fact]
     public void 设备后缀取客户端ID最后一段()
     {
-        Assert.Equal("abcd1234", MqttPresence.SuffixFor("windows-abcd1234"));
+        Assert.Equal("abcd1234", MqttPresence.SuffixFor("windows_abcd1234"));
+        Assert.Equal("abcd1234", MqttPresence.SuffixFor("my-phone_abcd1234"));
+        Assert.Equal("abcd1234", MqttPresence.SuffixFor("my-home-phone_abcd1234"));
+        // 兼容旧格式
         Assert.Equal("abcd1234", MqttPresence.SuffixFor("my-phone-abcd1234"));
-        Assert.Equal("abcd1234", MqttPresence.SuffixFor("my-home-phone-abcd1234"));
     }
 
     [Fact]

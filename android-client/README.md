@@ -201,7 +201,7 @@ gradle :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/usr/bin/aapt2
    - **端口**：切换传输方式会自动带出默认值（`443` / `9001` / `1883`），可手改
    - **WebSocket 路径**：选 `WS`/`WSS` 时出现，默认 `/mqtt`
    - **订阅主题**：默认 `taskops/todo`（与 `PUSH_TOPIC` 一致）
-   - **Client ID 前缀**：最终 ID 为 `前缀-固定随机串`；留空则为 `android-xxxxxxxx`，随机串在重装/清空数据前保持不变
+   - **Client ID 前缀**：最终 ID 为 `前缀_固定随机串`；留空则为 `android_xxxxxxxx`，随机串在重装/清空数据前保持不变
 3. 点「保存」，再点「启动接收」。状态卡片变为「已连接」，出现常驻通知。
 
 > 开发期不迁移旧配置：升级后旧的 DataStore 设置会被忽略，首次打开显示上面的默认公网 WSS。

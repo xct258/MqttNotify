@@ -47,10 +47,10 @@ public class AppSettingsTests
     public void 客户端ID由自定义前缀和固定随机后缀组成()
     {
         Assert.Equal(
-            "windows-abcd1234",
+            "windows_abcd1234",
             new AppSettings { ClientIdSuffix = "abcd1234" }.EffectiveClientId);
         Assert.Equal(
-            "my-pc-abcd1234",
+            "my-pc_abcd1234",
             new AppSettings { ClientId = " my-pc ", ClientIdSuffix = "abcd1234" }.EffectiveClientId);
     }
 

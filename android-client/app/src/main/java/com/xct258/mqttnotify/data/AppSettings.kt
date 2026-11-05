@@ -7,7 +7,7 @@ package com.xct258.mqttnotify.data
  *  - [host] / [port] / [transport]：broker 地址与传输方式；
  *  - [topicBase]：下行主题的 base，默认 taskops/todo；实际订阅 [subscribeTopic]；
  *  - [serverName]：来源服务名（如 taskops），用于后续 REST 补拉，不影响订阅；
- *  - [clientId]：自定义 Client ID 前缀；最终 ID 为 `{前缀}-{固定随机后缀}`，留空则为 `android-xxxxxxxx`；
+ *  - [clientId]：自定义 Client ID 前缀；最终 ID 为 `{前缀}_{固定随机后缀}`，留空则为 `android_xxxxxxxx`；
  *  - [wsPath]：WS/WSS 的 serverPath（默认 /mqtt）；
  *  - [allowInsecureTls]：WSS 下跳过证书链校验（仅内网自签证书用）。
  */
@@ -42,11 +42,11 @@ data class AppSettings(
             }
         }
 
-    /** 最终 MQTT Client ID：`{自定义或 android}-{固定随机后缀}`。 */
+    /** 最终 MQTT Client ID：`{自定义或 android}_{固定随机后缀}`。 */
     val effectiveClientId: String
         get() {
             val prefix = clientId.trim().ifBlank { "android" }
-            return if (clientIdSuffix.isBlank()) prefix else "$prefix-${clientIdSuffix.trim()}"
+            return if (clientIdSuffix.isBlank()) prefix else "${prefix}_${clientIdSuffix.trim()}"
         }
 
     /** 是否已配置到可连接的程度。 */

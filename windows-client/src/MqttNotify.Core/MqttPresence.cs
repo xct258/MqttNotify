@@ -22,7 +22,12 @@ public static class MqttPresence
     public static string SuffixFor(string clientId)
     {
         var id = clientId.Trim();
-        var separator = id.LastIndexOf('-');
+        // 新格式用 _ 分隔；兼容旧格式的 -，确保升级后仍能识别同一台设备。
+        var separator = id.LastIndexOf('_');
+        if (separator < 0)
+        {
+            separator = id.LastIndexOf('-');
+        }
         return separator >= 0 && separator < id.Length - 1 ? id[(separator + 1)..] : id;
     }
 

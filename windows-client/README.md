@@ -87,7 +87,7 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 | `wsPath` | `/mqtt` | WS/WSS 的路径；缺前导 `/` 会自动补 |
 | `topicBase` | `taskops/todo` | 下行主题 base，实际订阅 `{base}/#` |
 | `serverName` | `taskops` | 来源服务名（预留给后续 REST 补拉） |
-| `clientId` | 空 | 自定义 ID 前缀；最终 ID 为 `{前缀}-{固定随机后缀}`，留空则为 `windows-xxxxxxxx` |
+| `clientId` | 空 | 自定义 ID 前缀；最终 ID 为 `{前缀}_{固定随机后缀}`，留空则为 `windows_xxxxxxxx` |
 | `clientIdSuffix` | 首次启动生成 | 安装期固定随机后缀；清空配置/重装后才会变化 |
 | `allowInsecureTls` | `false` | 仅 WSS：跳过证书链与主机名校验（内网自签证书用） |
 | `autoStartOnBoot` | `true` | 写 `HKCU` 的 Run 项，不需要管理员权限 |
