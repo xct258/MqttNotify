@@ -24,6 +24,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.MqttNotify"
+        android:usesCleartextTraffic="true"
         tools:targetApi="34">
 
         <activity

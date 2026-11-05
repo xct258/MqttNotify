@@ -18,7 +18,11 @@ data class AppSettings(
     val serverName: String = DEFAULT_SERVER,
     val clientId: String = "",
     val autoStartOnBoot: Boolean = true,
-    val transport: MqttTransport = MqttTransport.TCP,
+    /**
+     * 默认走 WebSocket：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
+     * 手机跨机连不上；9001 才是对外监听的端口。
+     */
+    val transport: MqttTransport = MqttTransport.WS,
     val wsPath: String = DEFAULT_WS_PATH,
     val allowInsecureTls: Boolean = false,
 ) {
@@ -55,7 +59,7 @@ data class AppSettings(
 
     companion object {
         const val DEFAULT_HOST = ""
-        const val DEFAULT_PORT = 1883
+        const val DEFAULT_PORT = 9001
         const val DEFAULT_TOPIC = "taskops/todo"
         const val DEFAULT_SERVER = "taskops"
         const val DEFAULT_WS_PATH = "/mqtt"

@@ -8,11 +8,12 @@ import org.junit.Test
 class AppSettingsTest {
 
     @Test
-    fun `默认与 push-server 文档一致`() {
+    fun `默认使用对局域网可达的 WebSocket 与 9001 端口`() {
         val s = AppSettings()
-        assertEquals(1883, s.port)
+        assertEquals(9001, s.port)
         assertEquals("taskops/todo", s.topicBase)
         assertEquals("taskops/todo/#", s.subscribeTopic)
+        assertEquals(MqttTransport.WS, s.transport)
     }
 
     @Test

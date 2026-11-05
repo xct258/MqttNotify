@@ -53,6 +53,7 @@ android {
             // 未指定时不下发，测试侧 assumeTrue 自动跳过。
             System.getProperty("mqtt.broker.host")?.let { task.systemProperty("mqtt.broker.host", it) }
             System.getProperty("mqtt.broker.port")?.let { task.systemProperty("mqtt.broker.port", it) }
+            System.getProperty("mqtt.broker.transport")?.let { task.systemProperty("mqtt.broker.transport", it) }
         }
     }
 
@@ -92,6 +93,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.hivemq.mqtt.client)
+    // WebSocket 传输必需：HiveMQ 只声明了 netty 的基础模块，缺 codec-http 时
+    // 建连会抛 NoClassDefFoundError: io/netty/handler/codec/http/websocketx/WebSocketVersion
+    implementation(libs.netty.codec.http)
 
     debugImplementation(libs.androidx.ui.tooling)
 

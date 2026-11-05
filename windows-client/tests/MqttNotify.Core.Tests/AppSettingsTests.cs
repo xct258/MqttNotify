@@ -8,14 +8,14 @@ namespace MqttNotify.Core.Tests;
 public class AppSettingsTests
 {
     [Fact]
-    public void 默认与push_server文档一致()
+    public void 默认使用对局域网可达的WebSocket与9001端口()
     {
         var settings = new AppSettings();
 
-        Assert.Equal(1883, settings.Port);
+        Assert.Equal(9001, settings.Port);
         Assert.Equal("taskops/todo", settings.TopicBase);
         Assert.Equal("taskops/todo/#", settings.SubscribeTopic);
-        Assert.Equal(MqttTransport.Tcp, settings.Transport);
+        Assert.Equal(MqttTransport.Ws, settings.Transport);
     }
 
     [Fact]

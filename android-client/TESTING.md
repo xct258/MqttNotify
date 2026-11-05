@@ -63,8 +63,15 @@ mosquitto_pub -h 127.0.0.1 -t 'taskops/todo/7' -m 'selftest'
 ### 2.2 跑联调测试
 
 ```bash
+# TCP（push-server 的 1883 只绑 127.0.0.1，适合同机测试）
 ./gradlew :app:testDebugUnitTest \
   -Dmqtt.broker.host=127.0.0.1 -Dmqtt.broker.port=1883 \
+  --tests '*MqttBrokerIntegrationTest*'
+
+# WebSocket（客户端默认传输方式，对应 push-server 对外的 9001）
+./gradlew :app:testDebugUnitTest \
+  -Dmqtt.broker.host=127.0.0.1 -Dmqtt.broker.port=9001 \
+  -Dmqtt.broker.transport=ws \
   --tests '*MqttBrokerIntegrationTest*'
 ```
 
@@ -118,7 +125,9 @@ curl -X POST http://<host>:8383/api/push \
   -d '{
     "server_name": "taskops",
     "topic": "taskops/todo/7",
+    "title": "交电费",
     "message": "【待办提醒】交电费\n主卧电表，户号123456\n到期：2026-10-12",
+    "status": "info",
     "push_to_mqtt": true,
     "msg_type": "markdown",
     "mode": "append"

@@ -39,7 +39,7 @@ class SettingsRepository private constructor(private val dataStore: DataStore<Pr
                 autoStartOnBoot = prefs[KEY_AUTO_START] ?: true,
                 transport = prefs[KEY_TRANSPORT]
                     ?.let { name -> runCatching { MqttTransport.valueOf(name) }.getOrNull() }
-                    ?: MqttTransport.TCP,
+                    ?: MqttTransport.WS,
                 wsPath = prefs[KEY_WS_PATH] ?: AppSettings.DEFAULT_WS_PATH,
                 allowInsecureTls = prefs[KEY_INSECURE_TLS] ?: false,
             )

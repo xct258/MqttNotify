@@ -38,7 +38,7 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 两边是同名类、同名测试用例，改一处必须改另一处。
 
 > 注意 push-server 自带的 Mosquitto 把 TCP `1883` 绑在 `127.0.0.1`（局域网访问不到），
-> 而 WebSocket `9001` 绑在 `0.0.0.0`。所以**局域网直连默认走 WebSocket 9001**，
+> 而 WebSocket `9001` 绑在 `0.0.0.0`。所以**两端客户端的默认传输方式都是 WebSocket 9001**，
 > 具体见 `windows-client/README.md` §2.3。
 
 ## 预编译产物

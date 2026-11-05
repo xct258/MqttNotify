@@ -62,7 +62,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     var serverName by rememberSaveable { mutableStateOf("") }
     var clientId by rememberSaveable { mutableStateOf("") }
     var autoStart by rememberSaveable { mutableStateOf(true) }
-    var transport by rememberSaveable { mutableStateOf(MqttTransport.TCP.name) }
+    var transport by rememberSaveable { mutableStateOf(MqttTransport.WS.name) }
     var wsPath by rememberSaveable { mutableStateOf(AppSettings.DEFAULT_WS_PATH) }
     var insecureTls by rememberSaveable { mutableStateOf(false) }
     var formLoaded by rememberSaveable { mutableStateOf(false) }
@@ -88,7 +88,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     val portValue = port.toIntOrNull()
     val canSave = host.isNotBlank() && topic.isNotBlank() && portValue != null && portValue in 1..65535
     val transportValue = remember(transport) {
-        runCatching { MqttTransport.valueOf(transport) }.getOrDefault(MqttTransport.TCP)
+        runCatching { MqttTransport.valueOf(transport) }.getOrDefault(MqttTransport.WS)
     }
     val running = status.status != MqttState.Status.STOPPED
     val savedMessage = stringResource(R.string.ui_saved)

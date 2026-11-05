@@ -15,7 +15,7 @@ namespace MqttNotify.Core;
 public sealed record AppSettings
 {
     public const string DefaultHost = "";
-    public const int DefaultPort = 1883;
+    public const int DefaultPort = 9001;
     public const string DefaultTopic = "taskops/todo";
     public const string DefaultServer = "taskops";
     public const string DefaultWsPath = "/mqtt";
@@ -36,7 +36,11 @@ public sealed record AppSettings
     /// <summary>点关闭按钮时收进托盘而不是退出（托盘常驻应用的默认行为）。</summary>
     public bool MinimizeToTrayOnClose { get; init; } = true;
 
-    public MqttTransport Transport { get; init; } = MqttTransport.Tcp;
+    /// <summary>
+    /// 默认走 WebSocket：push-server 的 Mosquitto 只把 TCP 1883 绑在 127.0.0.1，
+    /// 跨机（含局域网）连不上；9001 才是对外监听的端口。
+    /// </summary>
+    public MqttTransport Transport { get; init; } = MqttTransport.Ws;
 
     public string WsPath { get; init; } = DefaultWsPath;
 

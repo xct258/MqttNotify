@@ -70,8 +70,8 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `host` | 空 | Broker 主机名或 IP |
-| `port` | 1883 | 端口；切换传输方式时若仍是旧默认值会自动跟随 |
-| `transport` | `Tcp` | `Tcp` / `Ws` / `Wss` |
+| `port` | 9001 | 端口；切换传输方式时若仍是旧默认值会自动跟随 |
+| `transport` | `Ws` | `Tcp` / `Ws` / `Wss`；默认 WebSocket，避开只绑 127.0.0.1 的 TCP 1883 |
 | `wsPath` | `/mqtt` | WS/WSS 的路径；缺前导 `/` 会自动补 |
 | `topicBase` | `taskops/todo` | 下行主题 base，实际订阅 `{base}/#` |
 | `serverName` | `taskops` | 来源服务名（预留给后续 REST 补拉） |
@@ -89,7 +89,8 @@ dotnet publish src/MqttNotify.Windows -c Release -r win-x64 --self-contained tru
 | WebSocket + TLS | 需要跨公网／不受信网络时。**必须自己在前端挂 TLS 终止**，Mosquitto 本身不提供 | `wss://notify.example.com:443/mqtt` |
 
 > **最容易踩的坑**：服务端默认的 TCP 1883 监听在 `127.0.0.1`，所以「直连 `mqtt://<内网IP>:1883`」
-> 一定会连接失败。要么改用 WebSocket 9001，要么把服务端配置改成 `listener 1883 0.0.0.0`。
+> 一定会连接失败。客户端默认值已经是 WebSocket 9001，正常不会踩到；只有手工改成 TCP 才会。
+> 也可以把服务端配置改成 `listener 1883 0.0.0.0`。
 
 WSS 通常是 nginx 终止 TLS 之后再转发到 Mosquitto 的 WS 端口：
 

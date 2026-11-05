@@ -1,6 +1,7 @@
 package com.xct258.mqttnotify.mqtt
 
 import com.hivemq.client.mqtt.MqttClient
+import com.hivemq.client.mqtt.MqttWebSocketConfig
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,8 +23,15 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * 运行方式（未指定 broker 时测试会被 assumeTrue 跳过，不影响 CI）：
  * ```
+ * # TCP（push-server 的 1883 只绑 127.0.0.1，适合同机测试）
  * gradle :app:testDebugUnitTest \
  *   -Dmqtt.broker.host=127.0.0.1 -Dmqtt.broker.port=1883 \
+ *   --tests '*MqttBrokerIntegrationTest*'
+ *
+ * # WebSocket（客户端默认传输方式，对应 push-server 对外的 9001）
+ * gradle :app:testDebugUnitTest \
+ *   -Dmqtt.broker.host=127.0.0.1 -Dmqtt.broker.port=9001 \
+ *   -Dmqtt.broker.transport=ws \
  *   --tests '*MqttBrokerIntegrationTest*'
  * ```
  * 注意：Gradle 需把系统属性透传给测试 JVM，见 app/build.gradle.kts 的 testOptions。
@@ -38,6 +46,7 @@ class MqttBrokerIntegrationTest {
             return
         }
         val port = System.getProperty("mqtt.broker.port")?.toIntOrNull() ?: 1883
+        val transport = System.getProperty("mqtt.broker.transport")?.lowercase() ?: "tcp"
 
         val base = "taskops/todo"
         val taskId = 7
@@ -50,12 +59,21 @@ class MqttBrokerIntegrationTest {
         val received = AtomicReference<Pair<String, String>>()
         val latch = CountDownLatch(1)
 
-        val client = MqttClient.builder()
+        val builder = MqttClient.builder()
             .useMqttVersion3()
             .identifier("it-" + System.nanoTime())
             .serverHost(host)
             .serverPort(port)
-            .buildAsync()
+
+        if (transport == "ws") {
+            builder.webSocketConfig(
+                MqttWebSocketConfig.builder()
+                    .serverPath("/mqtt")
+                    .build()
+            )
+        }
+
+        val client = builder.buildAsync()
 
         try {
             client.connectWith()

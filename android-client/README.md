@@ -56,7 +56,7 @@ listener 9001 0.0.0.0
 | 模式 | 地址 | 适用场景 |
 | --- | --- | --- |
 | `TCP` | `mqtt://host:1883` | 仅当 App 与 broker **同机**（1883 绑在 `127.0.0.1`，局域网手机连不上），或你自行放开了监听 |
-| `WS` | `ws://host:9001` | push-server 默认对外开放的监听，手机走局域网/内网**首选** |
+| `WS` | `ws://host:9001` | push-server 默认对外开放的监听，**客户端默认值**，手机走局域网/内网首选 |
 | `WSS` | `wss://host:443/mqtt` | WS 之上加 TLS。Mosquitto 的 websockets 监听默认是明文，WSS 需要自己在前面挂 TLS 终止（nginx / caddy / frp 等） |
 
 WSS 用 nginx 反代 Mosquitto 的 9001 时，`location` 必须与 App 里的「WebSocket 路径」一致（默认 `/mqtt`）：
@@ -193,9 +193,9 @@ gradle :app:assembleDebug -Pandroid.aapt2FromMavenOverride=/usr/bin/aapt2
 
 1. 打开 App，授予通知权限（Android 13+）。
 2. 在「连接设置」填入：
-   - **传输方式**：默认 `TCP`；手机走局域网时选 `WS`（push-server 默认只把 1883 绑在 `127.0.0.1`，见 §1.1）；需要 TLS 时选 `WSS`
+   - **传输方式**：默认 `WS`（push-server 只把 1883 绑在 `127.0.0.1`，见 §1.1）；需要 TLS 时选 `WSS`，broker 与手机同机时才选 `TCP`
    - **Broker 地址**：运行 push-server / Mosquitto 的主机（内网 IP 或反代域名）
-   - **端口**：切换传输方式会自动带出默认值（`1883` / `9001` / `443`），可手改
+   - **端口**：切换传输方式会自动带出默认值（`9001` / `443` / `1883`），可手改
    - **WebSocket 路径**：选 `WS`/`WSS` 时出现，默认 `/mqtt`
    - **订阅主题**：默认 `taskops/todo`（与 `PUSH_TOPIC` 一致）
    - **Client ID**：留空则自动生成 `android-xxxxxxxx`
@@ -225,6 +225,10 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
   `MqttWebSocketConfig.serverPath(..)`，WSS 再叠加 `MqttClientSslConfig`（默认系统信任库，
   勾选自签证书时改用 `mqtt/InsecureSsl.kt`：纯 JDK API 的放行型 `TrustManagerFactory`
   加宽松 `HostnameVerifier`）。
+  > WebSocket 传输额外依赖 `io.netty:netty-codec-http`。HiveMQ 只把 netty 的基础模块
+  > 作为传递依赖，缺了它建连会抛
+  > `NoClassDefFoundError: io/netty/handler/codec/http/websocketx/WebSocketVersion`，
+  > 所以 `app/build.gradle.kts` 里显式声明了该依赖。
   > 顺带记一笔：HiveMQ 的 POM 里 netty 是 `<scope>runtime</scope>`，**编译期不可见**，
   > 所以不能直接引用它自带的 `InsecureTrustManagerFactory`，否则 `compileDebugKotlin` 会报
   > `Unresolved reference 'netty'`。
