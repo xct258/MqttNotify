@@ -30,8 +30,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 托盘 NotifyIcon 也要读同一个图标文件，所以一并拷到输出目录 -->
-    <None Update="Assets/MqttNotify.ico" CopyToOutputDirectory="PreserveNewest" />
+    <!-- 同一个 ico 同时用于 exe 图标、窗口图标和托盘图标：编译进程序集，
+         单文件发布时不需要额外的 Assets 文件 -->
+    <Resource Include="Assets/MqttNotify.ico" />
   </ItemGroup>
 
 </Project>

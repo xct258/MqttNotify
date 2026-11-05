@@ -12,14 +12,15 @@ namespace IconGen;
 /// （System.Drawing.Common 从 .NET 6 起只在 Windows 上可用），
 /// 所以直接按 ICO 规范拼字节，并用 4x4 超采样自绘抗锯齿。
 ///
-/// 图案：圆角蓝色方块 + 白色铃铛（钟体 / 底沿 / 顶帽 / 钟锤四个图元求并集）。
+/// 图案：靛蓝→青色渐变圆角方块 + 白色纸飞机（推送 / 消息）。
 /// </summary>
 internal static class Program
 {
     private static readonly int[] Sizes = { 16, 32, 48, 64, 128 };
 
     // BGRA 顺序，与位图载荷一致
-    private static readonly (byte B, byte G, byte R) Background = (0xD2, 0x76, 0x19); // #1976D2
+    private static readonly (byte B, byte G, byte R) GradientStart = (0xE5, 0x46, 0x4F); // #4F46E5
+    private static readonly (byte B, byte G, byte R) GradientEnd = (0xD4, 0xB6, 0x06);   // #06B6D4
     private static readonly (byte B, byte G, byte R) Foreground = (0xFF, 0xFF, 0xFF);
 
     private static int Main(string[] args)
@@ -73,21 +74,22 @@ internal static class Program
 
                         backgroundCoverage++;
 
-                        if (InBell(x, y))
+                        if (InPaperPlane(x, y))
                         {
                             foregroundCoverage++;
                         }
                     }
                 }
 
-                // alpha = 圆角方块覆盖率；颜色 = 在方块内的子采样里，铃铛占比
+                // alpha = 圆角方块覆盖率；颜色 = 在方块内的子采样里，纸飞机占比
                 var alpha = (double)backgroundCoverage / totalSamples;
                 var ink = backgroundCoverage > 0 ? (double)foregroundCoverage / backgroundCoverage : 0;
+                var gradient = GradientAt((px + 0.5) / size, (py + 0.5) / size);
 
                 var offset = (py * size + px) * 4;
-                pixels[offset] = Mix(Background.B, Foreground.B, ink);
-                pixels[offset + 1] = Mix(Background.G, Foreground.G, ink);
-                pixels[offset + 2] = Mix(Background.R, Foreground.R, ink);
+                pixels[offset] = Mix(gradient.B, Foreground.B, ink);
+                pixels[offset + 1] = Mix(gradient.G, Foreground.G, ink);
+                pixels[offset + 2] = Mix(gradient.R, Foreground.R, ink);
                 pixels[offset + 3] = (byte)Math.Round(alpha * 255);
             }
         }
@@ -117,42 +119,44 @@ internal static class Program
         return (dx * dx) + (dy * dy) <= radius * radius;
     }
 
-    private static bool InBell(double x, double y)
+    private static bool InPaperPlane(double x, double y)
     {
-        // 钟体：上窄下宽
-        const double BodyTop = 0.255;
-        const double BodyBottom = 0.700;
-        if (y >= BodyTop && y <= BodyBottom)
-        {
-            var t = (y - BodyTop) / (BodyBottom - BodyTop);
-            var halfWidth = 0.085 + (0.255 * Math.Pow(t, 0.65));
-            if (Math.Abs(x - 0.5) <= halfWidth)
-            {
-                return true;
-            }
-        }
+        // 纸飞机：两个共享斜边的三角形，外侧留出机翼折角。
+        // A 左侧尾翼，B 机头，C 下侧机翼，D 机身折点。
+        var a = (X: 0.16, Y: 0.48);
+        var b = (X: 0.86, Y: 0.20);
+        var c = (X: 0.55, Y: 0.84);
+        var d = (X: 0.48, Y: 0.56);
 
-        // 底沿：一圈外扩的横条
-        if (y > BodyBottom && y <= 0.765 && Math.Abs(x - 0.5) <= 0.375)
-        {
-            return true;
-        }
-
-        // 顶帽
-        if (InCircle(x, y, 0.5, 0.205, 0.062))
-        {
-            return true;
-        }
-
-        // 钟锤：与底沿留出一点缝隙，否则小尺寸下会糊成一坨
-        return InCircle(x, y, 0.5, 0.875, 0.070);
+        return InTriangle(x, y, a, b, d) || InTriangle(x, y, b, c, d);
     }
 
-    private static bool InCircle(double x, double y, double cx, double cy, double radius)
+    private static bool InTriangle(
+        double x,
+        double y,
+        (double X, double Y) a,
+        (double X, double Y) b,
+        (double X, double Y) c)
     {
-        var dx = x - cx;
-        var dy = y - cy;
-        return (dx * dx) + (dy * dy) <= radius * radius;
+        double Sign((double X, double Y) p1, (double X, double Y) p2, (double X, double Y) p3) =>
+            ((p1.X - p3.X) * (p2.Y - p3.Y)) - ((p2.X - p3.X) * (p1.Y - p3.Y));
+
+        var d1 = Sign((x, y), a, b);
+        var d2 = Sign((x, y), b, c);
+        var d3 = Sign((x, y), c, a);
+        var hasNegative = d1 < 0 || d2 < 0 || d3 < 0;
+        var hasPositive = d1 > 0 || d2 > 0 || d3 > 0;
+        return !(hasNegative && hasPositive);
+    }
+
+    private static (byte B, byte G, byte R) GradientAt(double x, double y)
+    {
+        // 左上 → 右下的对角渐变，亮度过渡比纯竖向更自然。
+        var t = Math.Clamp((x + y) / 2, 0, 1);
+        return (
+            Mix(GradientStart.B, GradientEnd.B, t),
+            Mix(GradientStart.G, GradientEnd.G, t),
+            Mix(GradientStart.R, GradientEnd.R, t));
     }
 
     private static byte Mix(byte from, byte to, double t) =>
