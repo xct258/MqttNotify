@@ -26,11 +26,12 @@ public static class MqttPresence
         return separator >= 0 && separator < id.Length - 1 ? id[(separator + 1)..] : id;
     }
 
-    public static byte[] Payload(string clientId, bool online) =>
+    public static byte[] Payload(string clientId, string topic, bool online) =>
         JsonSerializer.SerializeToUtf8Bytes(new
         {
             client_id = clientId,
             suffix = SuffixFor(clientId),
+            topic,
             name = Environment.MachineName,
             platform = Platform,
             version = AppVersion,

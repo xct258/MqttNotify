@@ -19,6 +19,11 @@ public static class SettingsPaths
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MqttNotify",
         "settings.json");
+
+    public static string DefaultAlertsFile { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "MqttNotify",
+        "alerts.json");
 }
 
 /// <summary>

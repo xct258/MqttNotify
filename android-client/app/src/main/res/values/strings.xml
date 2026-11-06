@@ -37,12 +37,24 @@
     <string name="ui_client_id">Client ID 前缀（可留空）</string>
     <string name="ui_client_id_hint">最终 ID = 前缀_固定随机串；留空则为 android_xxxxxxxx</string>
     <string name="ui_auto_start">开机自动启动</string>
+    <string name="ui_keepalive_hint">以下项目全部开启，才能最大程度保证息屏、休眠和清理后台后仍能及时收信</string>
     <string name="ui_battery_optimization">忽略电池优化</string>
     <string name="ui_battery_optimization_hint">减少系统在后台清理长连接；国产系统还需允许自启动/后台运行</string>
     <string name="ui_battery_optimization_action">去设置</string>
     <string name="ui_battery_optimization_done">已开启</string>
+    <string name="ui_notifications">通知权限</string>
+    <string name="ui_notifications_hint">未授权时连接正常，但收到消息不会弹出提醒</string>
+    <string name="ui_notifications_action">去授权</string>
+    <string name="ui_notifications_done">已开启</string>
+    <string name="ui_exact_alarm">精确闹钟唤醒</string>
+    <string name="ui_exact_alarm_hint">允许系统在 Doze 深度休眠时按时唤醒自检（Android 12+）</string>
+    <string name="ui_exact_alarm_action">去授权</string>
+    <string name="ui_exact_alarm_done">已授权</string>
+    <string name="ui_autostart">自启动 / 后台运行</string>
+    <string name="ui_autostart_hint">国产 ROM 需手动允许；否则重启或清理后台后可能收不到消息</string>
+    <string name="ui_autostart_action">去设置</string>
     <string name="ui_save">保存</string>
     <string name="ui_saved">设置已保存</string>
-    <string name="ui_recent">最近提醒（仅本次运行，不落盘）</string>
+    <string name="ui_recent">最近提醒（保留最近 30 天）</string>
     <string name="ui_no_alerts">暂无提醒</string>
 </resources>

@@ -23,11 +23,9 @@ public sealed record TransportOption(MqttTransport Value, string Display, string
 /// </summary>
 public sealed class MainViewModel : ObservableObject
 {
-    /// <summary>最近提醒在内存里最多保留多少条（不落盘，与手机端首版一致）。</summary>
-    private const int MaxAlerts = 100;
-
     private readonly MqttConnectionService _connection;
     private readonly ISettingsStore _store;
+    private readonly AlertStore _alertStore;
 
     /// <summary>事件都可能来自 MQTTnet 的后台线程，统一切回 UI 线程。</summary>
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
@@ -49,10 +47,15 @@ public sealed class MainViewModel : ObservableObject
     private string _statusDetail = string.Empty;
     private string _statusMessage = string.Empty;
 
-    public MainViewModel(MqttConnectionService connection, ISettingsStore store, AppSettings settings)
+    public MainViewModel(
+        MqttConnectionService connection,
+        ISettingsStore store,
+        AppSettings settings,
+        AlertStore? alertStore = null)
     {
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _alertStore = alertStore ?? new AlertStore(SettingsPaths.DefaultAlertsFile);
 
         TransportOptions = new List<TransportOption>
         {
@@ -64,12 +67,18 @@ public sealed class MainViewModel : ObservableObject
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => CanSave, ReportError);
         StartCommand = new AsyncRelayCommand(StartAsync, () => !IsRunning, ReportError);
         StopCommand = new AsyncRelayCommand(StopAsync, () => IsRunning, ReportError);
-        ClearAlertsCommand = new RelayCommand(() => Alerts.Clear());
+        ClearAlertsCommand = new RelayCommand(() =>
+        {
+            Alerts.Clear();
+            _alertStore.Save(Alerts);
+            OnPropertyChanged(nameof(HasAlerts));
+        });
 
         _connection.StatusChanged += OnStatusChanged;
         _connection.AlertReceived += OnAlertReceived;
 
         LoadForm(settings.Normalized());
+        LoadAlerts();
     }
 
     /// <summary>提醒已加入列表（在 UI 线程触发），供托盘弹通知。</summary>
@@ -391,15 +400,38 @@ public sealed class MainViewModel : ObservableObject
         RunOnUiThread(() =>
         {
             Alerts.Insert(0, alert);
-            while (Alerts.Count > MaxAlerts)
-            {
-                Alerts.RemoveAt(Alerts.Count - 1);
-            }
-
+            PruneAlerts();
+            _alertStore.Save(Alerts);
             OnPropertyChanged(nameof(HasAlerts));
         });
 
         AlertRaised?.Invoke(this, alert);
+    }
+
+    private void LoadAlerts()
+    {
+        foreach (var alert in _alertStore.Load())
+        {
+            Alerts.Add(alert);
+        }
+        OnPropertyChanged(nameof(HasAlerts));
+    }
+
+    private void PruneAlerts()
+    {
+        var cutoff = DateTimeOffset.Now - AlertStore.Retention;
+        for (var i = Alerts.Count - 1; i >= 0; i--)
+        {
+            if (Alerts[i].ReceivedAt < cutoff)
+            {
+                Alerts.RemoveAt(i);
+            }
+        }
+
+        while (Alerts.Count > AlertStore.MaxRecords)
+        {
+            Alerts.RemoveAt(Alerts.Count - 1);
+        }
     }
 
     private void RunOnUiThread(Action action)

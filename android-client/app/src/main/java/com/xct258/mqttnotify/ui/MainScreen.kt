@@ -6,15 +6,20 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
@@ -26,6 +31,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -43,11 +49,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,8 +93,16 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var needsBatteryExemption by remember { mutableStateOf(!isIgnoringBatteryOptimizations(context)) }
+    var exactAlarmGranted by remember {
+        mutableStateOf(KeepAliveSettings.canScheduleExactAlarms(context))
+    }
+    var notificationsEnabled by remember {
+        mutableStateOf(KeepAliveSettings.areNotificationsEnabled(context))
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         needsBatteryExemption = !isIgnoringBatteryOptimizations(context)
+        exactAlarmGranted = KeepAliveSettings.canScheduleExactAlarms(context)
+        notificationsEnabled = KeepAliveSettings.areNotificationsEnabled(context)
     }
 
     LaunchedEffect(settings) {
@@ -116,11 +132,30 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        stringResource(
-                            if (showSettings) R.string.ui_settings_title else R.string.app_name
-                        )
-                    )
+                    if (showSettings) {
+                        Text(stringResource(R.string.ui_settings_title))
+                    } else {
+                        Column {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(statusColor(status.status), CircleShape),
+                                )
+                                Text(
+                                    text = stringResource(statusLabelRes(status.status)),
+                                    fontSize = 11.sp,
+                                    color = statusColor(status.status),
+                                    modifier = Modifier.padding(start = 6.dp),
+                                )
+                            }
+                        }
+                    }
                 },
                 navigationIcon = {
                     if (showSettings) {
@@ -146,37 +181,57 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (!showSettings) {
-                StatusCard(status)
-
-                if (running) {
-                    Button(
-                        onClick = { viewModel.stopReceiving() },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.ui_stop)) }
-                } else {
-                    Button(
-                        onClick = { viewModel.startReceiving() },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = settings.isValid,
-                    ) { Text(stringResource(R.string.ui_start)) }
+            if (!showSettings && !running) {
+                item {
+                    Text(
+                        text = "接收已停止，请在右上角设置中启动",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
             if (showSettings) {
+                item {
                 Card {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Text(
+                        text = "连接操作",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Button(
+                            onClick = { viewModel.startReceiving() },
+                            enabled = !running && settings.isValid,
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(R.string.ui_start)) }
+                        OutlinedButton(
+                            onClick = { viewModel.stopReceiving() },
+                            enabled = running,
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(R.string.ui_stop)) }
+                    }
+                    Text(
+                        text = "启动/停止只影响当前连接，不会修改下面的配置。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HorizontalDivider()
+
                     Text(
                         text = stringResource(R.string.ui_transport),
                         style = MaterialTheme.typography.labelLarge,
@@ -309,33 +364,56 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.ui_battery_optimization),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            Text(
-                                text = stringResource(R.string.ui_battery_optimization_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Button(
-                            onClick = { requestIgnoreBatteryOptimizations(context) },
-                            enabled = needsBatteryExemption,
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (needsBatteryExemption) R.string.ui_battery_optimization_action
-                                    else R.string.ui_battery_optimization_done
-                                )
-                            )
-                        }
+                    Text(
+                        text = stringResource(R.string.ui_keepalive_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    KeepAliveRow(
+                        title = stringResource(R.string.ui_battery_optimization),
+                        hint = stringResource(R.string.ui_battery_optimization_hint),
+                        actionLabel = stringResource(
+                            if (needsBatteryExemption) R.string.ui_battery_optimization_action
+                            else R.string.ui_battery_optimization_done
+                        ),
+                        actionEnabled = needsBatteryExemption,
+                        onClick = { requestIgnoreBatteryOptimizations(context) },
+                    )
+
+                    HorizontalDivider()
+                    KeepAliveRow(
+                        title = stringResource(R.string.ui_notifications),
+                        hint = stringResource(R.string.ui_notifications_hint),
+                        actionLabel = stringResource(
+                            if (notificationsEnabled) R.string.ui_notifications_done
+                            else R.string.ui_notifications_action
+                        ),
+                        actionEnabled = !notificationsEnabled,
+                        onClick = { KeepAliveSettings.openNotificationSettings(context) },
+                    )
+
+                    if (KeepAliveSettings.supportsExactAlarms()) {
+                        HorizontalDivider()
+                        KeepAliveRow(
+                            title = stringResource(R.string.ui_exact_alarm),
+                            hint = stringResource(R.string.ui_exact_alarm_hint),
+                            actionLabel = stringResource(
+                                if (exactAlarmGranted) R.string.ui_exact_alarm_done
+                                else R.string.ui_exact_alarm_action
+                            ),
+                            actionEnabled = !exactAlarmGranted,
+                            onClick = { KeepAliveSettings.requestExactAlarmPermission(context) },
+                        )
                     }
+
+                    HorizontalDivider()
+                    KeepAliveRow(
+                        title = stringResource(R.string.ui_autostart),
+                        hint = stringResource(R.string.ui_autostart_hint),
+                        actionLabel = stringResource(R.string.ui_autostart_action),
+                        onClick = { KeepAliveSettings.openAutoStartSettings(context) },
+                    )
 
                     Button(
                         onClick = {
@@ -368,22 +446,29 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                 }
             }
             }
+            }
 
             if (!showSettings) {
-                Text(
-                    text = stringResource(R.string.ui_recent),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                item {
+                    Text(
+                        text = stringResource(R.string.ui_recent),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
 
                 if (alerts.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.ui_no_alerts),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    item {
+                        Text(
+                            text = stringResource(R.string.ui_no_alerts),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 } else {
-                    alerts.forEach { alert -> AlertCard(alert) }
+                    items(alerts, key = { it.id }) { alert ->
+                        AlertCard(alert)
+                    }
                 }
             }
         }
@@ -391,39 +476,41 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
 }
 
 @Composable
-private fun StatusCard(status: MqttState.Snapshot) {
-    val statusColor = when (status.status) {
-        MqttState.Status.CONNECTED -> MaterialTheme.colorScheme.primary
-        MqttState.Status.FAILED -> MaterialTheme.colorScheme.error
-        MqttState.Status.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.tertiary
-    }
+private fun statusColor(status: MqttState.Status): Color = when (status) {
+    MqttState.Status.CONNECTED -> MaterialTheme.colorScheme.primary
+    MqttState.Status.FAILED -> MaterialTheme.colorScheme.error
+    MqttState.Status.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
+    else -> MaterialTheme.colorScheme.tertiary
+}
 
-    Card {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+@Composable
+private fun KeepAliveRow(
+    title: String,
+    hint: String,
+    actionLabel: String,
+    actionEnabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.ui_status_title),
-                style = MaterialTheme.typography.labelMedium,
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                text = stringResource(statusLabelRes(status.status)),
-                style = MaterialTheme.typography.headlineSmall,
-                color = statusColor,
-                fontWeight = FontWeight.Bold,
-            )
-            if (status.detail.isNotBlank()) {
-                Text(
-                    text = status.detail,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        }
+        Button(
+            onClick = onClick,
+            enabled = actionEnabled,
+        ) {
+            Text(actionLabel)
         }
     }
 }
@@ -443,7 +530,10 @@ private fun AlertCard(alert: MqttState.ReceivedAlert) {
                 fontWeight = FontWeight.SemiBold,
             )
             if (alert.body.isNotBlank()) {
-                Text(text = alert.body, style = MaterialTheme.typography.bodyMedium)
+                MarkdownText(
+                    markdown = alert.body,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             Text(
                 text = buildString {

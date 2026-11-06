@@ -11,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.xct258.mqttnotify.MainActivity
 import com.xct258.mqttnotify.R
 import com.xct258.mqttnotify.mqtt.MqttState
+import com.xct258.mqttnotify.ui.markdownToPlainText
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -74,17 +75,21 @@ object NotificationHelper {
     fun notifyAlert(context: Context, alert: MqttState.ReceivedAlert) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
 
-        val body = alert.body.ifBlank { alert.title }
+        val body = markdownToPlainText(alert.body.ifBlank { alert.title })
+        val title = markdownToPlainText(alert.title)
         val builder = NotificationCompat.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(alert.title)
+            .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setSubText(alert.topic)
             .setContentIntent(contentIntent(context, alert.receivedAt.toInt()))
             .setAutoCancel(true)
+            .setWhen(alert.receivedAt)
+            .setShowWhen(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setGroup(GROUP_ALERTS)
 
         // Android 13+ 未授权时会抛 SecurityException，静默忽略（UI 已单独提示授权）。

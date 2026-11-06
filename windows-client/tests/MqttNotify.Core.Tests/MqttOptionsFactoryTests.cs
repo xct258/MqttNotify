@@ -146,6 +146,7 @@ public class MqttOptionsFactoryTests
         var root = payload.RootElement;
         Assert.Equal(clientId, root.GetProperty("client_id").GetString());
         Assert.Equal("windows", root.GetProperty("platform").GetString());
+        Assert.Equal("taskops/todo/#", root.GetProperty("topic").GetString());
         Assert.False(root.GetProperty("online").GetBoolean());
         Assert.Equal(MqttPresence.SuffixFor(clientId), root.GetProperty("suffix").GetString());
     }

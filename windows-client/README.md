@@ -195,7 +195,7 @@ dotnet test  tests/MqttNotify.Core.Tests -c Release
   Win10/11 会把它渲染成右下角通知，但它不进操作中心、也不支持按钮/点击回调。
   升级路径是用 `CommunityToolkit` 的 Toast（需要注册 AppUserModelID / 开始菜单快捷方式），
   首版为保持零第三方 UI 依赖没有引入。
-- **最近提醒只在内存里**（最多 100 条），退出即清空；不落盘、不做历史列表。
+- **提醒历史保留最近 30 天**（最多 2000 条），落盘到 `%APPDATA%\MqttNotify\alerts.json`。
 - **不做离线补拉**：断线期间服务端产生的提醒不会补发（REST 8383 未接入）。
 - 自签证书场景需要手动勾选「允许不安全 TLS」，这是有意的显式操作，不是默认行为。
 - 未做单次通知的「点击跳转」——payload 里没有可跳转的目标。

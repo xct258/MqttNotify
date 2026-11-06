@@ -33,7 +33,8 @@
 ## 2. 协议联调测试（真实 broker，无需设备）
 
 验证「客户端真的能连上 Mosquitto、订阅 `{base}/#`、收到到点推送并还原成通知文案」。
-用的是**与 App 完全相同的 HiveMQ 客户端与连接参数**（QoS 1 / cleanSession / keepAlive 60）。
+用的是**与 App 相同的 HiveMQ 客户端与核心连接参数**（QoS 1 / keepAlive 60 / 订阅 `{base}/#`；
+联调测试为了不在 broker 上留下会话，使用临时 client id + cleanSession=true，App 本身用持久会话）。
 
 ### 2.1 起一个本地 broker
 
@@ -162,10 +163,22 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
 | 2 | 主题解析 | 发到 `taskops/todo/42` | 通知副标题是 topic，详情含 `#42` |
 | 3 | 断线重连 | 停掉 broker 30s 再启动 | 状态变「重连中」→「已连接」，之后推送正常收到（指数退避） |
 | 4 | 配置热更新 | 改 topic 后保存 | 服务自动重连，无需手动重启 |
-| 5 | 进程被杀 | `adb shell am force-stop <pkg>` 后重新推 | 系统按 `START_STICKY` 重启服务；若未重启则手动打开 App |
+| 5 | 进程被杀 | `adb shell am kill <pkg>`（模拟系统回收，不要用 force-stop）后等 15 分钟再推 | 看门狗把服务拉起并重连，离线期间的消息补收 |
 | 6 | 开机自启 | 重启手机（开关已开） | 无需打开 App，通知栏即出现常驻通知 |
 | 7 | 权限 | 关掉通知权限 | 不崩溃；连接照常，只是不弹通知 |
-| 8 | 息屏/Doze | 息屏放置 10 分钟后再推 | 通知能到（必要时把 App 加入电池优化白名单） |
+| 8 | 息屏/Doze | 息屏放置 10 分钟后再推 | 通知能到（务必开启忽略电池优化） |
+| 9 | 网络切换 | 推送前在 Wi-Fi / 移动数据之间切换 | 3 秒内状态回到「已连接」，切换后推送正常收到 |
+| 10 | 离线补收 | 关掉网络 2 分钟，期间发 2 条推送，再恢复网络 | 重连后两条通知都到（持久会话排队）；顺序可能按 broker 队列 |
+| 11 | 假死自愈 | 用防火墙丢弃 broker 流量 3 分钟（或飞行模式后恢复） | 应用主动重连，不必等 TCP KeepAlive 超时 |
+| 12 | 停止接收 | 点「停止接收」后等 15 分钟 | 服务保持停止，不被看门狗重新拉起 |
+| 13 | 覆盖安装 | `adb install -r` 新包（之前正在接收） | 安装完成后自动恢复接收 |
+| 14 | 精确闹钟 | Android 12+ 关闭精确闹钟权限 | 看门狗仍工作（退化为非精确）；授权后 Doze 唤醒更准时 |
+| 15 | 在线状态 | 保持连接 5 分钟，观察 push 管理页「客户端」 | 始终显示在线，最后心跳不超过 60 秒；发一条消息后 last_seen 立即刷新 |
+| 16 | 重连后的在线状态 | 断开网络 30 秒再恢复，观察管理页 | 重连成功后 retained 状态恢复为 online=true，不会一直停在离线 |
+
+> 看门狗是 15 分钟一次，测试时可以临时把 `MqttWatchdog.INTERVAL_MS` 调小，
+> 或用 `adb shell dumpsys alarm | grep mqttnotify` 确认闹钟已注册。
+> 强制停止（`am force-stop` / 系统设置里「强行停止」）会清除所有闹钟，任何应用都无法自恢复。
 
 包名：debug 是 `com.xct258.mqttnotify.debug`，release 是 `com.xct258.mqttnotify`。
 
@@ -187,6 +200,12 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
 5. **连上了收不到**：QoS 1 正常；确认消息是 `retained=false` 的实时推送，
    离线期间的消息本来就**不会补发**（要靠 REST 补拉，首版未接入）。
 6. **后台被杀 / 延迟**：MIUI/EMUI 等需手动允许自启动与后台运行；关闭电池优化。
+7. **管理页显示离线但手机能收消息**：先确认两边 client id 一致，再旁路观察心跳：
+   ```bash
+   mosquitto_sub -h <host> -t '$presence/clients/#' -v
+   ```
+   正常情况下，Android 客户端上线、每 60 秒心跳、收到消息、MQTT 重连、亮屏/解锁时都会
+   发一条 retained 在线消息。若完全没有心跳，检查服务是否被 ROM 冻结、通知/自启动权限是否给足。
 
 **看日志**：
 

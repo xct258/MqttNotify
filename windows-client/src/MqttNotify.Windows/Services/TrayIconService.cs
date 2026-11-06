@@ -22,6 +22,7 @@ public sealed class TrayIconService : IDisposable
     private const int BalloonTextMaxLength = 255;
 
     private readonly NotifyIcon _notifyIcon;
+    private readonly ContextMenuStrip _menu;
     private readonly ToolStripMenuItem _statusItem;
     private readonly ToolStripMenuItem _startItem;
     private readonly ToolStripMenuItem _stopItem;
@@ -48,8 +49,26 @@ public sealed class TrayIconService : IDisposable
         showItem.Click += (_, _) => ShowWindowRequested?.Invoke(this, EventArgs.Empty);
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
-        var menu = new ContextMenuStrip();
-        menu.Items.AddRange(new ToolStripItem[]
+        var menuFont = new Font("Microsoft YaHei UI", 9f);
+        foreach (var item in new[] { _statusItem, _startItem, _stopItem, showItem, exitItem })
+        {
+            item.Padding = new Padding(12, 7, 12, 7);
+            item.Margin = new Padding(0, 1, 0, 1);
+            item.Font = menuFont;
+        }
+
+        _menu = new ContextMenuStrip
+        {
+            Renderer = new DarkMenuRenderer(),
+            BackColor = Color.FromArgb(15, 23, 42),
+            ForeColor = Color.FromArgb(226, 232, 240),
+            Font = menuFont,
+            ShowImageMargin = false,
+            ShowCheckMargin = false,
+            Padding = new Padding(6),
+            DropShadowEnabled = true,
+        };
+        _menu.Items.AddRange(new ToolStripItem[]
         {
             _statusItem,
             new ToolStripSeparator(),
@@ -59,13 +78,14 @@ public sealed class TrayIconService : IDisposable
             showItem,
             exitItem,
         });
+        _menu.Opened += (_, _) => WindowMaterial.ApplyDarkPopup(_menu.Handle);
 
         _notifyIcon = new NotifyIcon
         {
             // 没自带图标时退回系统默认图标，至少不是空图标
             Icon = icon ?? SystemIcons.Application,
             Text = "MQTT 提醒",
-            ContextMenuStrip = menu,
+            ContextMenuStrip = _menu,
             Visible = true,
         };
 
@@ -143,6 +163,7 @@ public sealed class TrayIconService : IDisposable
         _disposed = true;
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _menu.Dispose();
     }
 
     private static string Truncate(string value, int maxLength) =>

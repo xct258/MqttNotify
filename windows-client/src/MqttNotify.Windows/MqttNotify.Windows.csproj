@@ -33,6 +33,9 @@
     <!-- 同一个 ico 同时用于 exe 图标、窗口图标和托盘图标：编译进程序集，
          单文件发布时不需要额外的 Assets 文件 -->
     <Resource Include="Assets/MqttNotify.ico" />
+
+    <!-- 提醒正文按 Markdown 渲染 -->
+    <PackageReference Include="Markdig" Version="0.41.3" />
   </ItemGroup>
 
 </Project>

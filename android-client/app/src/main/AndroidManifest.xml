@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!-- 建连瞬间短暂持有，避免设备刚被闹钟唤醒又立刻睡回去 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
     <!-- Android 13+ 弹出通知需运行时授权 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -17,6 +20,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 申请忽略电池优化，减少系统在后台清理长连接 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 看门狗在 Doze 深度休眠中也按时唤醒；Android 12+ 需用户在设置里授权 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".MqttNotifyApp"
@@ -62,6 +67,13 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- 每 15 分钟自检一次：进程被杀就拉起，连接假死就重连。
+             只有显式 PendingIntent 会触发，不需要 exported。 -->
+        <receiver
+            android:name=".service.MqttWatchdogReceiver"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
 </manifest>

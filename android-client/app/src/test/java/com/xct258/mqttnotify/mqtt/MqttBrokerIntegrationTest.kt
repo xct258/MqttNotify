@@ -14,8 +14,9 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * 真实 broker 的端到端联调测试（**默认跳过**）。
  *
- * 验证的是客户端最核心的链路：用与 App **相同的 HiveMQ 客户端、相同的连接参数**
- * （QoS1 / cleanSession / keepAlive 60 / 订阅 `{base}/#`）连到真的 Mosquitto，
+ * 验证的是客户端最核心的链路：用与 App **相同的 HiveMQ 客户端与核心连接参数**
+ * （QoS1 / keepAlive 60 / 订阅 `{base}/#`；测试用临时 client id + cleanSession=true，
+ * 避免在 broker 上留下持久会话）连到真的 Mosquitto，
  * 然后模拟 push-server 到点 publish（主题 `{base}/{task_id}`、正文为纯文本），
  * 断言 App 的解析结果能还原出正确的通知标题与正文。
  *

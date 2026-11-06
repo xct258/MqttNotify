@@ -193,7 +193,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
 
                 try
                 {
-                    await PublishPresenceAsync(client, clientId, online: true, cancellationToken).ConfigureAwait(false);
+                    await PublishPresenceAsync(client, clientId, settings.SubscribeTopic, online: true, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -202,7 +202,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
 
                 // 连接期间定时刷新 last_seen；异常断线时 broker 会代发 Will（online=false）。
                 using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                var heartbeat = PresenceHeartbeatAsync(client, clientId, heartbeatCts.Token);
+                var heartbeat = PresenceHeartbeatAsync(client, clientId, settings.SubscribeTopic, heartbeatCts.Token);
                 try
                 {
                     await disconnected.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -255,7 +255,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
                 {
                     try
                     {
-                        await PublishPresenceAsync(client, clientId, online: false, CancellationToken.None)
+                        await PublishPresenceAsync(client, clientId, settings.SubscribeTopic, online: false, CancellationToken.None)
                             .ConfigureAwait(false);
                     }
                     catch (Exception)
@@ -303,6 +303,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
     private static async Task PresenceHeartbeatAsync(
         IMqttClient client,
         string clientId,
+        string topic,
         CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -321,6 +322,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
                 await PublishPresenceAsync(
                     client,
                     clientId,
+                    topic,
                     online: true,
                     cancellationToken,
                     qos: MqttQualityOfServiceLevel.AtMostOnce,
@@ -336,6 +338,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
     private static async Task PublishPresenceAsync(
         IMqttClient client,
         string clientId,
+        string topic,
         bool online,
         CancellationToken cancellationToken,
         MqttQualityOfServiceLevel qos = MqttQualityOfServiceLevel.AtLeastOnce,
@@ -343,7 +346,7 @@ public sealed class MqttConnectionService : IAsyncDisposable
     {
         var message = new MqttApplicationMessageBuilder()
             .WithTopic(MqttPresence.TopicFor(clientId))
-            .WithPayload(MqttPresence.Payload(clientId, online))
+            .WithPayload(MqttPresence.Payload(clientId, topic, online))
             .WithQualityOfServiceLevel(qos)
             .WithRetainFlag(retain)
             .Build();

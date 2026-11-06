@@ -4,6 +4,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using MqttNotify.Core;
+using MqttNotify.Windows.Controls;
 using MqttNotify.Windows.Services;
 using MqttNotify.Windows.ViewModels;
 
@@ -52,7 +53,9 @@ public partial class App : Application
         _tray.ExitRequested += (_, _) => ExitApplication();
 
         _connection.StatusChanged += (_, snapshot) => _tray.UpdateStatus(snapshot.Status, snapshot.Detail);
-        _viewModel.AlertRaised += (_, alert) => _tray.ShowAlert(alert.Title, alert.Body);
+        _viewModel.AlertRaised += (_, alert) => _tray.ShowAlert(
+            MarkdownPlainText.ToPlainText(alert.Title),
+            MarkdownPlainText.ToPlainText(alert.Body));
 
         // 状态可能在装配前就已变化，先把当前状态同步给托盘
         _tray.UpdateStatus(_viewModel.Status, _viewModel.StatusDetail);

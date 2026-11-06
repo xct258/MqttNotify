@@ -8,8 +8,10 @@ import java.time.OffsetDateTime
 /**
  * 客户端在线状态上报。
  *
- * 连接成功后向 `$presence/clients/{client_id}` 发布 retained JSON，断开时由
- * MQTT Will（LWT）把 `online` 改成 false；连接期间每 60 秒刷新一次。
+ * 连接成功后向 `$presence/clients/{client_id}` 发布 retained JSON；连接期间每 60 秒
+ * 用 QoS1 + retained 刷新一次。Android 端**不使用 MQTT Will**：Will 的 payload 在连接
+ * 建立时就固定了，重连后旧连接的 Will 迟到会把新状态误覆盖成离线。异常断线由
+ * 服务端 `PRESENCE_TTL_SECONDS` 兜底，主动停止时由服务实时发布 `online=false`。
  * 主题以 `$` 开头，不会被业务订阅的 `#` 通配符匹配到。
  */
 object MqttPresence {
@@ -24,7 +26,7 @@ object MqttPresence {
         return if (separator >= 0 && separator < id.length - 1) id.substring(separator + 1) else id
     }
 
-    fun payload(context: Context, clientId: String, online: Boolean): ByteArray {
+    fun payload(context: Context, clientId: String, topic: String, online: Boolean): ByteArray {
         val version = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull().orEmpty().ifBlank { "unknown" }
@@ -37,6 +39,7 @@ object MqttPresence {
         return JSONObject()
             .put("client_id", clientId)
             .put("suffix", suffixFor(clientId))
+            .put("topic", topic)
             .put("name", name)
             .put("platform", "android")
             .put("version", version)

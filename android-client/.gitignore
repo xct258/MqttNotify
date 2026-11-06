@@ -10,3 +10,10 @@
 .cxx
 local.properties
 /app/build
+
+# 正式签名证书与密码：只保存在本地 / CI Secrets，绝不提交
+keystore/
+keystore.properties
+*.jks
+*.keystore
+*.p12

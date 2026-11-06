@@ -35,7 +35,7 @@ public static class MqttOptionsFactory
             // 异常退出（进程被杀 / 断网）时由 broker 代发离线状态；正常断开时
             // MqttConnectionService 会先主动发布 online=false。
             .WithWillTopic(MqttPresence.TopicFor(clientId))
-            .WithWillPayload(MqttPresence.Payload(clientId, online: false))
+            .WithWillPayload(MqttPresence.Payload(clientId, settings.SubscribeTopic, online: false))
             .WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
             .WithWillRetain(true);
 
