@@ -7,28 +7,10 @@ namespace MqttNotify.Windows;
 public partial class MainWindow : Window
 {
     private bool _closeAllowed;
-    private SettingsWindow? _settingsWindow;
 
     public MainWindow()
     {
         InitializeComponent();
-    }
-
-    private void OpenSettings_Click(object sender, RoutedEventArgs e)
-    {
-        if (_settingsWindow is { IsLoaded: true })
-        {
-            _settingsWindow.Activate();
-            return;
-        }
-
-        _settingsWindow = new SettingsWindow
-        {
-            DataContext = DataContext,
-            Owner = this,
-        };
-        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-        _settingsWindow.Show();
     }
 
     /// <summary>窗口被收进托盘时触发，用于首次提示用户「程序其实还在跑」。</summary>
@@ -45,7 +27,6 @@ public partial class MainWindow : Window
         if (!_closeAllowed)
         {
             e.Cancel = true;
-            _settingsWindow?.Close();
             Hide();
             HiddenToTray?.Invoke(this, EventArgs.Empty);
             return;

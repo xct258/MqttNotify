@@ -187,6 +187,97 @@
             </Setter>
         </Style>
 
+        <!-- ============================ 侧边导航 ============================ -->
+        <Style x:Key="SidebarTabControl" TargetType="TabControl">
+            <Setter Property="Background" Value="#F3F5FB" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="TabStripPlacement" Value="Left" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="236" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="#0B1220" Padding="18,22">
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Top">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="42" Height="42" CornerRadius="13"
+                                                    Background="{StaticResource AccentGradient}">
+                                                <Path Data="M2,12 L22,2 L14,22 L11,13 Z"
+                                                      Fill="White" Stretch="Uniform" Margin="11" />
+                                            </Border>
+                                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="MQTT 提醒" Foreground="White"
+                                                           FontSize="16" FontWeight="Bold" />
+                                                <TextBlock Text="推送接收端" Foreground="#94A3B8"
+                                                           FontSize="10.5" Margin="0,1,0,0" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Border Height="1" Background="#1E293B" Margin="0,22,0,14" />
+
+                                        <ItemsPresenter />
+                                    </StackPanel>
+
+                                    <StackPanel DockPanel.Dock="Bottom" VerticalAlignment="Bottom">
+                                        <Border Background="#111C2E" CornerRadius="12" Padding="12">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                                             Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
+                                                    <TextBlock Text="{Binding StatusText}" Foreground="#E2E8F0"
+                                                               FontSize="12" FontWeight="SemiBold" Margin="8,0,0,0" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding StatusDetail}" Foreground="#64748B"
+                                                           FontSize="10.5" TextWrapping="Wrap" Margin="0,5,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Text="关闭窗口后仍在托盘运行" Foreground="#475569"
+                                                   FontSize="10" Margin="2,10,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Background="{TemplateBinding Background}">
+                                <ContentPresenter ContentSource="SelectedContent" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SidebarTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="#94A3B8" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="border" Background="Transparent" CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1E293B" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#162033" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="GhostButton" TargetType="Button">
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
             <Setter Property="Background" Value="Transparent" />
