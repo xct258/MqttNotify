@@ -28,7 +28,11 @@
 - 订阅 `{base}/#`，`base` 默认 `taskops/todo` → 实际订阅 `taskops/todo/#`
 - QoS 1、`clean session = true`、KeepAlive 60s、匿名认证、`retained = false`
 - 主题最后一段是 `task_id`（解析不出数字就为 `null`，仅用于展示）
-- payload 为纯文本：`【待办提醒】{title}\n{message}`；没有该前缀时整段当正文，标题用默认值
+- payload 按 `category` 分两种纯文本格式：
+  - `todo`：`【待办提醒】{title}\n{message}`，沿用待办卡片；
+  - `service`：`【服务通知】{server}\n【服务】{title}\n【状态】{status}\n\n{message}`，
+    卡片标题显示服务器名，服务行显示 `【服务】`，正文完整渲染 Markdown；
+- 无法识别的旧格式整段当正文，标题用默认值
 - 连接后向 `$presence/clients/{client_id}` 发布 retained 在线状态，60 秒心跳
   （QoS0、非 retained）；异常退出由 MQTT Will 标记离线，供 push-server 管理页展示
 

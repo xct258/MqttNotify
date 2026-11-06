@@ -291,7 +291,11 @@ public sealed class MqttConnectionService : IAsyncDisposable
         var payload = e.ApplicationMessage.PayloadSegment.ToArray();
         var parsed = MqttMessageParser.Parse(topic, payload, _fallbackTitle);
         var alert = new AlertRecord(
+            parsed.Kind,
             parsed.TaskId,
+            parsed.ServerName,
+            parsed.ServiceName,
+            parsed.Status,
             topic,
             parsed.Title,
             parsed.Body,

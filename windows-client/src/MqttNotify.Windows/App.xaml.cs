@@ -53,9 +53,18 @@ public partial class App : Application
         _tray.ExitRequested += (_, _) => ExitApplication();
 
         _connection.StatusChanged += (_, snapshot) => _tray.UpdateStatus(snapshot.Status, snapshot.Detail);
-        _viewModel.AlertRaised += (_, alert) => _tray.ShowAlert(
-            MarkdownPlainText.ToPlainText(alert.Title),
-            MarkdownPlainText.ToPlainText(alert.Body));
+        _viewModel.AlertRaised += (_, alert) =>
+        {
+            var title = MarkdownPlainText.ToPlainText(alert.DisplayTitle);
+            var body = alert.IsService
+                ? MarkdownPlainText.ToPlainText(string.Join("\n\n", new[]
+                {
+                    alert.DisplayService,
+                    alert.Body,
+                }.Where(part => !string.IsNullOrWhiteSpace(part))))
+                : MarkdownPlainText.ToPlainText(alert.Body);
+            _tray.ShowAlert(title, body);
+        };
 
         // 状态可能在装配前就已变化，先把当前状态同步给托盘
         _tray.UpdateStatus(_viewModel.Status, _viewModel.StatusDetail);

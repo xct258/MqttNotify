@@ -21,8 +21,11 @@
 
 覆盖：
 
-- `MqttMessageParserTest` — `【待办提醒】{title}\n{message}` 的解析契约：带/不带标题、
-  多行正文、空 payload、CRLF 换行、主题尾段非数字（野消息）、标题为空时回退默认标题
+- `MqttMessageParserTest` — 两种 payload 的解析契约：
+  - 待办 `【待办提醒】{title}\n{message}`：带/不带标题、多行正文、空 payload、CRLF 换行、
+    主题尾段非数字（野消息）、标题为空时回退默认标题；
+  - 服务 `【服务通知】{server}\n【服务】{title}\n【状态】{status}\n\n{message}`：
+    服务器名/服务名/状态、缺状态行、缺空行、正文以 `【服务】` 开头、未知格式兜底。
 - `AppSettingsTest` — 订阅主题拼接（`{base}/#`、去尾斜杠）、`host/port/topic` 合法性、`normalized()`
 
 > 这两层是纯 Kotlin 逻辑，不碰 Android API，所以能在 JVM 上直接跑。

@@ -156,12 +156,24 @@
                                                     <TextBlock FontSize="11" Foreground="{StaticResource TextMuted}"
                                                                Margin="8,0,0,0"
                                                                Text="{Binding TaskId, StringFormat='#{0}'}" />
+                                                    <TextBlock FontSize="9" FontWeight="Bold" Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               Text="{Binding StatusLabel}"
+                                                               Foreground="{Binding StatusLabel, Converter={StaticResource AlertStatusBrush}}"
+                                                               Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}" />
                                                 </StackPanel>
                                             </DockPanel>
 
-                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14"
+                                            <TextBlock Text="{Binding DisplayTitle}" FontWeight="SemiBold" FontSize="14"
                                                        Foreground="{StaticResource TextPrimary}"
                                                        TextWrapping="Wrap" Margin="0,9,0,0" />
+                                            <TextBlock Text="{Binding DisplayService}"
+                                                       FontSize="11" Foreground="{StaticResource TextMuted}"
+                                                       TextWrapping="Wrap" Margin="0,3,0,0"
+                                                       Visibility="{Binding HasService, Converter={StaticResource BoolToVisibility}}" />
+                                            <Border Height="1" Background="{StaticResource CardBorder}"
+                                                    Margin="0,8,0,0"
+                                                    Visibility="{Binding HasService, Converter={StaticResource BoolToVisibility}}" />
                                             <controls:MarkdownTextBlock Markdown="{Binding Body}"
                                                                         Foreground="{StaticResource TextSecondary}"
                                                                         FontSize="12.5" LineHeight="19"

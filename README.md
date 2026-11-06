@@ -2,7 +2,7 @@
 
 对接 [push-server](https://github.com/xct258/push-server) 下行提醒的多端客户端合集。
 
-push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻后台订阅该主题，**
+push-server 把待办提醒 / 服务通知通过 MQTT 下行发布，这里的客户端常驻后台订阅该主题，**
 收到即弹系统通知**。本仓库同时收录 Android 与 Windows 两个端——它们共用同一套协议、
 同一份解析契约，因此放在一起维护，跨端改动可以一次提交完成。
 
@@ -31,7 +31,8 @@ push-server 把待办提醒通过 MQTT 下行发布，这里的客户端常驻�
 | 端口 | MQTT over TCP `1883`、MQTT over WebSocket `9001`、WSS `443`、FastAPI REST `8383` |
 | 下行订阅 | `{base}/#`，`base` 默认 `taskops/todo` |
 | task_id | 主题的最后一段（尾段） |
-| payload | 明文 `【待办提醒】{title}\n{message}` |
+| 消息分类 | push-server API 必填 `category`：`service`（服务通知）/ `todo`（待办提醒）；以后可扩展新值 |
+| payload | `todo`：`【待办提醒】{title}\n{message}`；`service`：`【服务通知】{server}\n【服务】{title}\n【状态】{status}\n\n{message}` |
 | 订阅参数 | QoS 1、`retained = false`、KeepAlive 60s、匿名（无账号密码）；Android 使用持久会话（`cleanSession=false`）以接收离线队列，Windows 仍为 clean session |
 | 在线状态 | 连接后向 `$presence/clients/{client_id}` 发布 retained JSON；60s QoS1 心跳。Android 不用 Will（异常断线靠服务端 TTL，默认 180s，主动停止实时上报离线），Windows 仍用 Will 标记离线 |
 | Client ID | `{自定义前缀或 windows/android}_{安装期固定随机 8 位}`；后缀是设备唯一标识，清空数据/重装后才会变化 |

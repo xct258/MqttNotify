@@ -23,7 +23,11 @@ object MqttState {
 
     data class ReceivedAlert(
         val id: Long,
+        val kind: MqttMessageParser.Kind,
         val taskId: Int?,
+        val serverName: String?,
+        val serviceName: String?,
+        val status: String?,
         val topic: String,
         val title: String,
         val body: String,
@@ -62,13 +66,17 @@ object MqttState {
         lastActivityAt > 0L && now - lastActivityAt <= CONNECT_STALE_MS
 
     /** 追加一条提醒并返回它，便于调用方直接拿去发通知。 */
-    fun addAlert(taskId: Int?, topic: String, title: String, body: String): ReceivedAlert {
+    fun addAlert(parsed: MqttMessageParser.ParsedAlert, topic: String): ReceivedAlert {
         val item = ReceivedAlert(
             id = seq.incrementAndGet(),
-            taskId = taskId,
+            kind = parsed.kind,
+            taskId = parsed.taskId,
+            serverName = parsed.serverName,
+            serviceName = parsed.serviceName,
+            status = parsed.status,
             topic = topic,
-            title = title,
-            body = body,
+            title = parsed.title,
+            body = parsed.body,
             receivedAt = System.currentTimeMillis(),
         )
         val cutoff = System.currentTimeMillis() - AlertStore.RETENTION_MS

@@ -4,13 +4,11 @@ using Xunit;
 namespace MqttNotify.Core.Tests;
 
 /// <summary>
-/// 下行 payload 解析的契约测试。
+/// 下行 payload 解析的契约测试，与手机端 <c>MqttMessageParserTest</c> 一一对应。
 ///
-/// 对应 push-server 的 <c>downlink_text()</c>：
-/// 有标题 -> <c>【待办提醒】{title}\n{message}</c>；无标题 -> 只发正文。
-/// 主题尾段为 task_id。
-///
-/// 用例与手机端 <c>MqttMessageParserTest</c> 一一对应，保证两端解析口径一致。
+/// - 待办：<c>【待办提醒】{title}\n{message}</c>
+/// - 服务：<c>【服务通知】{server}\n【服务】{title}\n【状态】{status}\n\n{message}</c>
+/// - 主题尾段为 task_id。
 /// </summary>
 public class MqttMessageParserTests
 {
@@ -20,39 +18,91 @@ public class MqttMessageParserTests
         MqttMessageParser.Parse(topic, Encoding.UTF8.GetBytes(payload), Fallback);
 
     [Fact]
-    public void 带标题与多行正文()
+    public void 待办_带标题与多行正文()
     {
         var alert = Parse("taskops/todo/7", "【待办提醒】交电费\n主卧电表，户号123456\n到期：2026-10-12");
 
+        Assert.Equal(AlertKind.Todo, alert.Kind);
         Assert.Equal(7, alert.TaskId);
         Assert.Equal("交电费", alert.Title);
         Assert.Equal("主卧电表，户号123456\n到期：2026-10-12", alert.Body);
     }
 
     [Fact]
-    public void 只有标题无正文()
+    public void 待办_只有标题无正文()
     {
         var alert = Parse("taskops/todo/8", "【待办提醒】交电费");
 
+        Assert.Equal(AlertKind.Todo, alert.Kind);
         Assert.Equal(8, alert.TaskId);
         Assert.Equal("交电费", alert.Title);
         Assert.Equal(string.Empty, alert.Body);
     }
 
     [Fact]
-    public void 标题为空时回退到默认标题()
+    public void 待办_标题为空时回退到默认标题()
     {
         var alert = Parse("taskops/todo/9", "【待办提醒】\n正文在这里");
 
+        Assert.Equal(AlertKind.Todo, alert.Kind);
         Assert.Equal(Fallback, alert.Title);
         Assert.Equal("正文在这里", alert.Body);
     }
 
     [Fact]
-    public void 无前缀时整段作为正文()
+    public void 服务_完整头与Markdown正文()
+    {
+        var alert = Parse(
+            "server/khx-live",
+            "【服务通知】o1-debian-1\n【服务】录播备份上传脚本\n【状态】ok\n\n上传成功\n\n- 文件 A\n- 文件 B");
+
+        Assert.Equal(AlertKind.Service, alert.Kind);
+        Assert.Equal("o1-debian-1", alert.ServerName);
+        Assert.Equal("录播备份上传脚本", alert.ServiceName);
+        Assert.Equal("ok", alert.Status);
+        Assert.Equal("o1-debian-1", alert.Title);
+        Assert.Equal("上传成功\n\n- 文件 A\n- 文件 B", alert.Body);
+        Assert.Null(alert.TaskId);
+    }
+
+    [Fact]
+    public void 服务_没有状态行也能解析()
+    {
+        var alert = Parse("server/khx-live", "【服务通知】nas\n【服务】备份\n\n完成");
+
+        Assert.Equal(AlertKind.Service, alert.Kind);
+        Assert.Equal("nas", alert.ServerName);
+        Assert.Equal("备份", alert.ServiceName);
+        Assert.Null(alert.Status);
+        Assert.Equal("完成", alert.Body);
+    }
+
+    [Fact]
+    public void 服务_正文以字段样式开头也不会被吞掉()
+    {
+        var alert = Parse(
+            "server/khx-live",
+            "【服务通知】nas\n【服务】备份\n\n【服务】这行属于正文");
+
+        Assert.Equal("【服务】这行属于正文", alert.Body);
+    }
+
+    [Fact]
+    public void 服务_缺少空行时遇到正文立即停止解析头()
+    {
+        var alert = Parse("server/khx-live", "【服务通知】nas\n【服务】备份\n上传成功");
+
+        Assert.Equal("nas", alert.ServerName);
+        Assert.Equal("备份", alert.ServiceName);
+        Assert.Equal("上传成功", alert.Body);
+    }
+
+    [Fact]
+    public void 未知格式_整段作为正文()
     {
         var alert = Parse("taskops/todo/10", "服务端只发了正文");
 
+        Assert.Equal(AlertKind.Unknown, alert.Kind);
         Assert.Equal(Fallback, alert.Title);
         Assert.Equal("服务端只发了正文", alert.Body);
     }
@@ -62,6 +112,7 @@ public class MqttMessageParserTests
     {
         var alert = Parse("taskops/todo/11", string.Empty);
 
+        Assert.Equal(AlertKind.Unknown, alert.Kind);
         Assert.Equal(Fallback, alert.Title);
         Assert.Equal(string.Empty, alert.Body);
     }
@@ -71,6 +122,7 @@ public class MqttMessageParserTests
     {
         var alert = Parse("taskops/todo/12", "【待办提醒】交电费\r\n第一行\r\n第二行");
 
+        Assert.Equal(AlertKind.Todo, alert.Kind);
         Assert.Equal("交电费", alert.Title);
         Assert.Equal("第一行\n第二行", alert.Body);
     }
@@ -107,5 +159,6 @@ public class MqttMessageParserTests
     public void marker常量与push_server一致()
     {
         Assert.Equal("【待办提醒】", MqttMessageParser.Marker);
+        Assert.Equal("【服务通知】", MqttMessageParser.ServiceMarker);
     }
 }

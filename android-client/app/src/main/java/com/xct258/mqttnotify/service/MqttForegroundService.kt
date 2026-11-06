@@ -562,7 +562,7 @@ class MqttForegroundService : Service() {
             publish.payloadAsBytes,
             getString(R.string.default_alert_title),
         )
-        val alert = MqttState.addAlert(parsed.taskId, topic, parsed.title, parsed.body)
+        val alert = MqttState.addAlert(parsed, topic)
         Log.i(TAG, "收到提醒 [$topic] ${parsed.title}")
         // 通知直接发：binder 调用很快，而且不能因为服务恰好被销毁/协程被取消
         // 而把已经收到的提醒丢掉。落盘较重，仍然异步且合并写。

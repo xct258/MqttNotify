@@ -24,12 +24,24 @@
 | WebSocket + TLS | `wss://push-server.o1-1.xct258.top/mqtt`（**默认**） |
 | 鉴权 | 内网匿名 |
 | 订阅主题 | `{base}/#`，`base` 默认 `taskops/todo` |
+| 消息分类 | `category`：`service`（服务通知）/ `todo`（待办提醒） |
 | QoS | 1（至少一次） |
 | Clean Session | `false`（Android 使用持久会话，离线期间由 broker 排队 QoS1 消息） |
 | Retained | `false` |
 | Keep Alive | 60s |
 
-**下行消息**：payload 为拼好的纯文本 `【待办提醒】{title}\n{message}`；主题尾段即 `task_id`。
+**下行消息**：按 `category` 分两种纯文本格式；主题尾段即 `task_id`。
+
+- **待办提醒（`todo`）**：`【待办提醒】{title}\n{message}`
+- **服务通知（`service`）**：
+  ```text
+  【服务通知】o1-debian-1
+  【服务】录播备份上传脚本
+  【状态】ok
+
+  上传成功
+  ```
+  卡片标题用服务器名，服务行用 `【服务】` 的值，空行后是完整 Markdown 正文。
 
 **在线状态**：连接后向 `$presence/clients/{client_id}` 发布 retained 在线状态；上线、60 秒心跳、
 收到消息、MQTT 重连、亮屏/解锁时都会用 **QoS1 + retained** 刷新。
@@ -49,7 +61,16 @@ Android 端**不再使用 MQTT Will**：Will 的 payload 在连接建立时就�
       到期：2026-10-12
 ```
 
-客户端不做解析拼装、不发回执，收到即展示。
+```
+主题: server/khx-live
+正文: 【服务通知】o1-debian-1
+      【服务】录播备份上传脚本
+      【状态】ok
+
+      上传成功
+```
+
+客户端不做解析拼装、不发回执，收到即展示；两种格式使用不同的卡片布局。
 
 > REST 侧的 `/api/push`、`/records`、`/api/tasks` 属于服务端/调用方接口，本客户端不涉及。
 
@@ -108,6 +129,7 @@ location /mqtt {
 - ✅ 后台保活引导：忽略电池优化、精确闹钟授权、国产 ROM 自启动/后台运行入口
 - ✅ 配置变更即时生效：服务监听配置流，改动后自动重连
 - ✅ 主界面展示连接状态与最近提醒（落盘保留最近 30 天，最多 2000 条）
+- ✅ 两种卡片：待办提醒沿用原布局；服务通知显示服务器名、服务名、状态徽章和完整 Markdown 内容
 - ✅ 开机自启（可选开关）；覆盖安装后保持原来的接收状态
 
 暂未包含（按需求确认，可后续扩展）：

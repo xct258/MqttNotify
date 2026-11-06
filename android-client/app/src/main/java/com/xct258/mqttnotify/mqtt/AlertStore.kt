@@ -35,7 +35,27 @@ object AlertStore {
                         add(
                             MqttState.ReceivedAlert(
                                 id = item.optLong("id", 0L),
+                                kind = runCatching {
+                                    MqttMessageParser.Kind.valueOf(
+                                        item.optString("kind", MqttMessageParser.Kind.UNKNOWN.name)
+                                    )
+                                }.getOrDefault(MqttMessageParser.Kind.UNKNOWN),
                                 taskId = if (item.isNull("taskId")) null else item.optInt("taskId"),
+                                serverName = if (item.isNull("serverName")) {
+                                    null
+                                } else {
+                                    item.optString("serverName").takeIf { it.isNotBlank() }
+                                },
+                                serviceName = if (item.isNull("serviceName")) {
+                                    null
+                                } else {
+                                    item.optString("serviceName").takeIf { it.isNotBlank() }
+                                },
+                                status = if (item.isNull("status")) {
+                                    null
+                                } else {
+                                    item.optString("status").takeIf { it.isNotBlank() }
+                                },
                                 topic = item.optString("topic"),
                                 title = item.optString("title"),
                                 body = item.optString("body"),
@@ -63,7 +83,11 @@ object AlertStore {
                         array.put(
                             JSONObject()
                                 .put("id", alert.id)
+                                .put("kind", alert.kind.name)
                                 .put("taskId", alert.taskId ?: JSONObject.NULL)
+                                .put("serverName", alert.serverName ?: JSONObject.NULL)
+                                .put("serviceName", alert.serviceName ?: JSONObject.NULL)
+                                .put("status", alert.status ?: JSONObject.NULL)
                                 .put("topic", alert.topic)
                                 .put("title", alert.title)
                                 .put("body", alert.body)

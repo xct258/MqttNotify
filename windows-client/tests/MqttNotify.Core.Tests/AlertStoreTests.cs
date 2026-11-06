@@ -33,6 +33,43 @@ public class AlertStoreTests
     }
 
     [Fact]
+    public void 服务通知字段可以完整落盘并恢复()
+    {
+        var path = TempFile();
+        try
+        {
+            var store = new AlertStore(path);
+            store.Save(new[]
+            {
+                new AlertRecord(
+                    AlertKind.Service,
+                    null,
+                    "o1-debian-1",
+                    "录播备份上传脚本",
+                    "ok",
+                    "server/khx-live",
+                    "o1-debian-1",
+                    "上传成功",
+                    DateTimeOffset.Now),
+            });
+
+            var record = Assert.Single(store.Load());
+            Assert.Equal(AlertKind.Service, record.Kind);
+            Assert.Equal("o1-debian-1", record.ServerName);
+            Assert.Equal("录播备份上传脚本", record.ServiceName);
+            Assert.Equal("ok", record.Status);
+            Assert.Equal("o1-debian-1", record.DisplayTitle);
+            Assert.Equal("录播备份上传脚本", record.DisplayService);
+            Assert.True(record.HasService);
+            Assert.True(record.HasStatus);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void 损坏文件回退为空历史()
     {
         var path = TempFile();
@@ -48,7 +85,8 @@ public class AlertStoreTests
     }
 
     private static AlertRecord Alert(string title, DateTimeOffset receivedAt) =>
-        new(null, "taskops/todo/1", title, "body", receivedAt);
+        new(AlertKind.Todo, null, null, null, null,
+            "taskops/todo/1", title, "body", receivedAt);
 
     private static string TempFile() =>
         Path.Combine(Path.GetTempPath(), $"mqttnotify-alerts-{Guid.NewGuid():N}.json");

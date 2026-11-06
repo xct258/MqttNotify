@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.xct258.mqttnotify.MainActivity
 import com.xct258.mqttnotify.R
+import com.xct258.mqttnotify.mqtt.MqttMessageParser
 import com.xct258.mqttnotify.mqtt.MqttState
 import com.xct258.mqttnotify.ui.markdownToPlainText
 import java.util.concurrent.atomic.AtomicInteger
@@ -71,18 +72,42 @@ object NotificationHelper {
             .build()
     }
 
-    /** 待办提醒通知。 */
+    /** 待办 / 服务通知。 */
     fun notifyAlert(context: Context, alert: MqttState.ReceivedAlert) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
 
-        val body = markdownToPlainText(alert.body.ifBlank { alert.title })
-        val title = markdownToPlainText(alert.title)
+        val (title, contentText, bigText) = when (alert.kind) {
+            MqttMessageParser.Kind.SERVICE -> {
+                val server = markdownToPlainText(alert.serverName ?: alert.title)
+                val service = alert.serviceName?.let(::markdownToPlainText)?.takeIf { it.isNotBlank() }
+                val body = markdownToPlainText(alert.body)
+                val expanded = buildString {
+                    if (service != null) append(service).append("\n\n")
+                    append(body.ifBlank { "（无内容）" })
+                }
+                Triple(server, service ?: expanded, expanded)
+            }
+
+            else -> {
+                val body = markdownToPlainText(alert.body.ifBlank { alert.title })
+                Triple(markdownToPlainText(alert.title), body, body)
+            }
+        }
+
+        val subText = buildString {
+            alert.status?.trim()?.takeIf { it.isNotBlank() }?.let {
+                append(it.uppercase())
+                append(" · ")
+            }
+            append(alert.topic)
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ALERTS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setSubText(alert.topic)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
+            .setSubText(subText)
             .setContentIntent(contentIntent(context, alert.receivedAt.toInt()))
             .setAutoCancel(true)
             .setWhen(alert.receivedAt)

@@ -8,6 +8,7 @@ import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +64,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xct258.mqttnotify.R
 import com.xct258.mqttnotify.data.AppSettings
 import com.xct258.mqttnotify.data.MqttTransport
+import com.xct258.mqttnotify.mqtt.MqttMessageParser
 import com.xct258.mqttnotify.mqtt.MqttState
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -517,6 +519,14 @@ private fun KeepAliveRow(
 
 @Composable
 private fun AlertCard(alert: MqttState.ReceivedAlert) {
+    when (alert.kind) {
+        MqttMessageParser.Kind.SERVICE -> ServiceAlertCard(alert)
+        else -> StandardAlertCard(alert)
+    }
+}
+
+@Composable
+private fun StandardAlertCard(alert: MqttState.ReceivedAlert) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -535,18 +545,107 @@ private fun AlertCard(alert: MqttState.ReceivedAlert) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            Text(
-                text = buildString {
-                    append(formatTime(alert.receivedAt))
-                    append(" · ")
-                    append(alert.topic)
-                    alert.taskId?.let { append(" · #$it") }
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            AlertFooter(alert)
         }
     }
+}
+
+/**
+ * 服务通知卡片：
+ *   o1-debian-1                    [OK]
+ *   录播备份上传脚本
+ *   ────────────────────────────
+ *   上传成功（完整 Markdown）
+ *   17:30:10 · server/khx-live
+ */
+@Composable
+private fun ServiceAlertCard(alert: MqttState.ReceivedAlert) {
+    val title = alert.serverName ?: alert.title
+    val statusStyle = statusStyle(alert.status)
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                statusStyle?.let { StatusBadge(it) }
+            }
+
+            if (!alert.serviceName.isNullOrBlank()) {
+                Text(
+                    text = alert.serviceName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            if (alert.body.isBlank()) {
+                Text(
+                    text = "（无内容）",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                MarkdownText(
+                    markdown = alert.body,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            AlertFooter(alert)
+        }
+    }
+}
+
+@Composable
+private fun AlertFooter(alert: MqttState.ReceivedAlert) {
+    Text(
+        text = buildString {
+            append(formatTime(alert.receivedAt))
+            append(" · ")
+            append(alert.topic)
+            alert.taskId?.let { append(" · #$it") }
+        },
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private data class StatusStyle(val label: String, val color: Color)
+
+private fun statusStyle(status: String?): StatusStyle? = when (status?.trim()?.lowercase()) {
+    "ok" -> StatusStyle("OK", Color(0xFF22C55E))
+    "warn" -> StatusStyle("WARN", Color(0xFFF59E0B))
+    "error" -> StatusStyle("ERROR", Color(0xFFEF4444))
+    "info" -> StatusStyle("INFO", Color(0xFF38BDF8))
+    else -> null
+}
+
+@Composable
+private fun StatusBadge(style: StatusStyle) {
+    Text(
+        text = style.label,
+        style = MaterialTheme.typography.labelSmall,
+        color = style.color,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .background(style.color.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
 }
 
 @StringRes
