@@ -79,6 +79,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            mkdir -p android-client/keystore
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-client/keystore/release.jks
+            cat > android-client/keystore.properties <<EOF
+          storeFile=keystore/release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+            echo "Android signing configured"
+          else
+            echo "No Android signing secrets; falling back to debug APK"
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -104,24 +125,35 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Test and build debug APK
+      - name: Test and build APK
         run: |
           VERSION="${RELEASE_TAG#v}"
-          gradle :app:testDebugUnitTest :app:assembleDebug \
-            -PappVersionName="$VERSION" \
-            -PappVersionCode="${GITHUB_RUN_NUMBER}"
+          if [ -f keystore.properties ]; then
+            gradle :app:testDebugUnitTest :app:assembleRelease \
+              -PappVersionName="$VERSION" \
+              -PappVersionCode="${GITHUB_RUN_NUMBER}"
+          else
+            gradle :app:testDebugUnitTest :app:assembleDebug \
+              -PappVersionName="$VERSION" \
+              -PappVersionCode="${GITHUB_RUN_NUMBER}"
+          fi
         working-directory: android-client
 
       - name: Collect APK
         run: |
           mkdir -p android-client/artifacts
-          cp android-client/app/build/outputs/apk/debug/app-debug.apk \
-            android-client/artifacts/MqttNotify-Android-debug.apk
+          if [ -f android-client/keystore.properties ]; then
+            cp android-client/app/build/outputs/apk/release/app-release.apk \
+              android-client/artifacts/MqttNotify-Android-release.apk
+          else
+            cp android-client/app/build/outputs/apk/debug/app-debug.apk \
+              android-client/artifacts/MqttNotify-Android-debug.apk
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: android-client/artifacts/MqttNotify-Android-debug.apk
+          path: android-client/artifacts/MqttNotify-Android-*.apk
           if-no-files-found: error
 
   release:
@@ -149,5 +181,5 @@ jobs:
           files: |
             release/MqttNotify-Windows-x64.exe
             release/MqttNotify-Windows-x64-self-contained.exe
-            release/MqttNotify-Android-debug.apk
+            release/MqttNotify-Android-*.apk
             release/SHA256SUMS.txt
