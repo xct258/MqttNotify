@@ -115,6 +115,7 @@ private fun MarkdownTable(
 ) {
     val borderColor = MaterialTheme.colorScheme.outlineVariant
     val cellWidth = 140.dp
+    val tableWidth = cellWidth * table.headers.size.coerceAtLeast(1).toFloat()
 
     Column(
         modifier = Modifier
@@ -132,7 +133,7 @@ private fun MarkdownTable(
         )
 
         table.rows.forEach { row ->
-            HorizontalDivider(color = borderColor)
+            HorizontalDivider(modifier = Modifier.width(tableWidth), color = borderColor)
             MarkdownTableRow(
                 cells = row,
                 alignments = table.alignments,
