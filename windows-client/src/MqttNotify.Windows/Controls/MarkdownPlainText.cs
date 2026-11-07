@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 using Markdig;
+using Markdig.Extensions.Tables;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
@@ -10,7 +12,7 @@ namespace MqttNotify.Windows.Controls;
 /// <summary>
 /// 把 Markdown 转成系统通知能显示的纯文本。
 /// 托盘气泡 / Windows 通知不支持富文本，直接传原文会露出 **、#、` 等标记；
-/// 这里保留标题、列表、引用和代码的换行结构，只去掉格式符号。
+/// 这里保留标题、列表、引用、代码和表格的换行结构，只去掉格式符号。
 /// </summary>
 public static class MarkdownPlainText
 {
@@ -93,11 +95,66 @@ public static class MarkdownPlainText
                     builder.Append("\n\n");
                     break;
 
+                case Table table:
+                    AppendTable(table, builder);
+                    break;
+
                 case ThematicBreakBlock:
                     builder.Append("────────\n\n");
                     break;
             }
         }
+    }
+
+    private static void AppendTable(Table table, StringBuilder builder)
+    {
+        foreach (var rowBlock in table)
+        {
+            if (rowBlock is not TableRow row)
+            {
+                continue;
+            }
+
+            var cells = new List<TableCell>();
+            foreach (var cellBlock in row)
+            {
+                if (cellBlock is TableCell cell)
+                {
+                    cells.Add(cell);
+                }
+            }
+
+            for (var i = 0; i < cells.Count; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(" | ");
+                }
+
+                var first = true;
+                foreach (var child in cells[i])
+                {
+                    if (child is not ParagraphBlock paragraph)
+                    {
+                        continue;
+                    }
+                    if (!first)
+                    {
+                        builder.Append(' ');
+                    }
+                    AppendInlines(paragraph.Inline, builder);
+                    first = false;
+                }
+            }
+            builder.Append('\n');
+
+            if (row.IsHeader)
+            {
+                builder.Append(new string('─', 24)).Append('\n');
+            }
+        }
+
+        builder.Append('\n');
     }
 
     private static void AppendInlines(ContainerInline? container, StringBuilder builder)

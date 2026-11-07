@@ -1,13 +1,17 @@
 package com.xct258.mqttnotify.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +24,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -28,9 +33,9 @@ import androidx.compose.ui.unit.sp
 /**
  * 提醒正文的轻量 Markdown 渲染。
  *
- * 支持：标题、段落、无序/有序列表、引用、围栏代码块，以及行内粗体、斜体、
- * 行内代码和链接文本。目标是覆盖 push-server 常见的 Markdown 消息，不追求
- * 完整 CommonMark，也不额外引入渲染库。
+ * 支持：标题、段落、无序/有序列表、引用、围栏代码块、表格，以及行内粗体、
+ * 斜体、行内代码和链接文本。目标是覆盖 push-server 常见的 Markdown 消息，
+ * 不追求完整 CommonMark，也不额外引入渲染库。
  */
 @Composable
 fun MarkdownText(markdown: String, modifier: Modifier = Modifier) {
@@ -91,7 +96,83 @@ fun MarkdownText(markdown: String, modifier: Modifier = Modifier) {
                         .background(codeBackground, RoundedCornerShape(6.dp))
                         .padding(8.dp),
                 )
+
+                is MdBlock.Table -> MarkdownTable(
+                    table = block,
+                    accent = accent,
+                    codeBackground = codeBackground,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTable(
+    table: MdBlock.Table,
+    accent: Color,
+    codeBackground: Color,
+) {
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val cellWidth = 140.dp
+
+    Column(
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp)),
+    ) {
+        MarkdownTableRow(
+            cells = table.headers,
+            alignments = table.alignments,
+            header = true,
+            cellWidth = cellWidth,
+            accent = accent,
+            codeBackground = codeBackground,
+            background = codeBackground,
+        )
+
+        table.rows.forEach { row ->
+            HorizontalDivider(color = borderColor)
+            MarkdownTableRow(
+                cells = row,
+                alignments = table.alignments,
+                header = false,
+                cellWidth = cellWidth,
+                accent = accent,
+                codeBackground = codeBackground,
+                background = null,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MarkdownTableRow(
+    cells: List<String>,
+    alignments: List<String>,
+    header: Boolean,
+    cellWidth: androidx.compose.ui.unit.Dp,
+    accent: Color,
+    codeBackground: Color,
+    background: Color?,
+) {
+    Row(modifier = Modifier.background(background ?: Color.Transparent)) {
+        cells.forEachIndexed { index, cell ->
+            val textAlign = when (alignments.getOrNull(index)) {
+                "center" -> TextAlign.Center
+                "right" -> TextAlign.End
+                else -> TextAlign.Start
+            }
+            Text(
+                text = buildInline(cell, accent, codeBackground),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontWeight = if (header) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                textAlign = textAlign,
+                modifier = Modifier
+                    .width(cellWidth)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            )
         }
     }
 }
@@ -103,10 +184,15 @@ private sealed interface MdBlock {
     data class Numbered(val number: Int, val text: String) : MdBlock
     data class Quote(val text: String) : MdBlock
     data class Code(val text: String) : MdBlock
+    data class Table(
+        val headers: List<String>,
+        val alignments: List<String>,
+        val rows: List<List<String>>,
+    ) : MdBlock
 }
 
 private val inlinePattern = Regex(
-    """(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|`[^`]+`|\[[^\]]+]\([^)]+\))"""
+    """(\*\*[^*]+\*\*|__[^_]+__|\*[^\s*][^*]*\*|_[^\s_][^_]*_|`[^`]+`|\[[^\]]+]\([^)]+\))"""
 )
 
 private fun buildInline(text: String, accent: Color, codeBackground: Color): AnnotatedString =
@@ -143,6 +229,34 @@ private fun buildInline(text: String, accent: Color, codeBackground: Color): Ann
         }
         append(text.substring(last))
     }
+
+private fun splitTableRow(line: String): List<String> {
+    var value = line.trim().replace("\\|", "\u0001")
+    if (value.startsWith("|")) value = value.drop(1)
+    if (value.endsWith("|")) value = value.dropLast(1)
+    return value.split('|').map { it.trim().replace("\u0001", "|") }
+}
+
+private fun isTableDelimiter(line: String): Boolean {
+    val cells = splitTableRow(line)
+    return cells.isNotEmpty() && cells.all { Regex("^:?-{3,}:?$").matches(it) }
+}
+
+private fun isTableStart(lines: List<String>, index: Int): Boolean =
+    lines[index].contains('|') &&
+        index + 1 < lines.size &&
+        isTableDelimiter(lines[index + 1])
+
+private fun tableAlignment(cell: String): String {
+    val left = cell.startsWith(":")
+    val right = cell.endsWith(":")
+    return when {
+        left && right -> "center"
+        left -> "left"
+        right -> "right"
+        else -> ""
+    }
+}
 
 private fun parseMarkdownBlocks(markdown: String): List<MdBlock> {
     val lines = markdown.replace("\r\n", "\n").split('\n')
@@ -182,6 +296,19 @@ private fun parseMarkdownBlocks(markdown: String): List<MdBlock> {
                 blocks.add(MdBlock.Quote(quote.joinToString("\n")))
             }
 
+            isTableStart(lines, i) -> {
+                val headers = splitTableRow(lines[i])
+                val alignments = splitTableRow(lines[i + 1]).map(::tableAlignment)
+                i += 2
+                val rows = mutableListOf<List<String>>()
+                while (i < lines.size && lines[i].isNotBlank() && lines[i].contains('|')) {
+                    val cells = splitTableRow(lines[i])
+                    rows.add(List(headers.size) { index -> cells.getOrElse(index) { "" } })
+                    i++
+                }
+                blocks.add(MdBlock.Table(headers, alignments, rows))
+            }
+
             Regex("^[-*+]\\s+").containsMatchIn(trimmed) -> {
                 blocks.add(MdBlock.Bullet(trimmed.replaceFirst(Regex("^[-*+]\\s+"), "")))
                 i++
@@ -195,7 +322,9 @@ private fun parseMarkdownBlocks(markdown: String): List<MdBlock> {
 
             else -> {
                 val paragraph = mutableListOf<String>()
-                while (i < lines.size && lines[i].isNotBlank() && !isBlockStart(lines[i])) {
+                while (i < lines.size && lines[i].isNotBlank() &&
+                    !isBlockStart(lines[i]) && !isTableStart(lines, i)
+                ) {
                     paragraph.add(lines[i])
                     i++
                 }
@@ -233,6 +362,14 @@ fun markdownToPlainText(markdown: String): String {
             is MdBlock.Numbered -> builder.append("${block.number}. ").append(stripInline(block.text)).append('\n')
             is MdBlock.Quote -> builder.append("│ ").append(stripInline(block.text)).append('\n')
             is MdBlock.Code -> builder.append(block.text).append("\n\n")
+            is MdBlock.Table -> {
+                builder.append(block.headers.joinToString(" | ") { stripInline(it) }).append('\n')
+                builder.append(block.headers.joinToString(" | ") { "---" }).append('\n')
+                block.rows.forEach { row ->
+                    builder.append(row.joinToString(" | ") { stripInline(it) }).append('\n')
+                }
+                builder.append('\n')
+            }
         }
     }
 
@@ -247,7 +384,7 @@ private fun stripInline(text: String): String {
     value = Regex("""\*\*([^*]+)\*\*""").replace(value, "$1")
     value = Regex("""__([^_]+)__""").replace(value, "$1")
     value = Regex("""`([^`]+)`""").replace(value, "$1")
-    value = Regex("""\*([^*]+)\*""").replace(value, "$1")
-    value = Regex("""_([^_]+)_""").replace(value, "$1")
+    value = Regex("""\*([^\s*][^*]*)\*""").replace(value, "$1")
+    value = Regex("""_([^\s_][^_]*)_""").replace(value, "$1")
     return value
 }

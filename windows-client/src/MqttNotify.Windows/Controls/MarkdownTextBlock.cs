@@ -9,11 +9,14 @@ using System.Windows.Navigation;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using MarkdownTable = Markdig.Extensions.Tables.Table;
+using MarkdownTableCell = Markdig.Extensions.Tables.TableCell;
+using MarkdownTableRow = Markdig.Extensions.Tables.TableRow;
 
 namespace MqttNotify.Windows.Controls;
 
 /// <summary>
-/// 轻量 Markdown 渲染控件：把常见的标题、段落、列表、引用、代码和行内格式
+/// 轻量 Markdown 渲染控件：把常见的标题、段落、列表、引用、代码、表格和行内格式
 /// 转成 TextBlock 的 Inlines，避免为提醒正文引入浏览器 / WebView。
 /// </summary>
 public sealed class MarkdownTextBlock : TextBlock
@@ -102,11 +105,81 @@ public sealed class MarkdownTextBlock : TextBlock
                 AppendCode(code.Lines.ToString());
                 break;
 
+            case MarkdownTable table:
+                AppendTable(table);
+                break;
+
             case ThematicBreakBlock:
                 Inlines.Add(new Run("────────") { Foreground = QuoteForeground });
                 AddLineBreak();
                 break;
         }
+    }
+
+    /// <summary>
+    /// TextBlock 没有表格布局，用 `│` 分隔的等宽文本表格呈现，保证内容完整、
+    /// 长单元格自动换行；真正的栅格布局留给后续需要时再换控件。
+    /// </summary>
+    private void AppendTable(MarkdownTable table)
+    {
+        foreach (var rowBlock in table)
+        {
+            if (rowBlock is not MarkdownTableRow row)
+            {
+                continue;
+            }
+
+            var cells = new System.Collections.Generic.List<MarkdownTableCell>();
+            foreach (var cellBlock in row)
+            {
+                if (cellBlock is MarkdownTableCell cell)
+                {
+                    cells.Add(cell);
+                }
+            }
+
+            for (var i = 0; i < cells.Count; i++)
+            {
+                if (i > 0)
+                {
+                    Inlines.Add(new Run(" │ ") { Foreground = QuoteForeground });
+                }
+
+                var span = new Span();
+                if (row.IsHeader)
+                {
+                    span.FontWeight = FontWeights.SemiBold;
+                }
+
+                var first = true;
+                foreach (var child in cells[i])
+                {
+                    if (child is not ParagraphBlock paragraph)
+                    {
+                        continue;
+                    }
+                    if (!first)
+                    {
+                        span.Inlines.Add(new Run(" "));
+                    }
+                    if (paragraph.Inline is not null)
+                    {
+                        BuildInlines(paragraph.Inline, span.Inlines, null);
+                    }
+                    first = false;
+                }
+                Inlines.Add(span);
+            }
+
+            AddLineBreak();
+            if (row.IsHeader)
+            {
+                Inlines.Add(new Run(new string('─', 24)) { Foreground = QuoteForeground });
+                AddLineBreak();
+            }
+        }
+
+        AddLineBreak();
     }
 
     private void AppendList(ListBlock list)
