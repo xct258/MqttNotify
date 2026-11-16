@@ -96,6 +96,13 @@ android {
                 "META-INF/*.kotlin_module"
             )
         }
+        // 这两个 AAR 自带的 .so 已经没有可剥离的调试符号，AGP 每次都会打印
+        // “Unable to strip the following libraries, packaging them as they are”。
+        // 显式声明保留符号后 AGP 不再尝试 strip，告警消失，体积基本不变。
+        jniLibs {
+            keepDebugSymbols += "**/libandroidx.graphics.path.so"
+            keepDebugSymbols += "**/libdatastore_shared_counter.so"
+        }
     }
 }
 

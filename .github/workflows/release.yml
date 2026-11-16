@@ -25,9 +25,9 @@ jobs:
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
           # 缓存 NuGet 包；csproj / Directory.Build.props 变化时自动换 key
@@ -65,7 +65,7 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP\win-sc\MqttNotify.exe" `
             windows-client/artifacts/MqttNotify-Windows-x64-self-contained.exe
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows
           path: windows-client/artifacts/*.exe
@@ -73,11 +73,11 @@ jobs:
 
   android:
     name: Android build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Prepare Android signing
         env:
@@ -100,7 +100,7 @@ jobs:
             echo "No Android signing secrets; falling back to debug APK"
           fi
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -121,7 +121,7 @@ jobs:
             "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
           fi
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.9'
 
@@ -150,7 +150,7 @@ jobs:
               android-client/artifacts/MqttNotify-Android-debug.apk
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android
           path: android-client/artifacts/MqttNotify-Android-*.apk
@@ -158,10 +158,10 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [windows, android]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: release
           merge-multiple: true
@@ -172,7 +172,7 @@ jobs:
           sha256sum *.exe *.apk > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           name: MqttNotify ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
