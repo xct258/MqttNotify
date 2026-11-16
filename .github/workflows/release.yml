@@ -20,7 +20,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  # 手动运行用 run_id 隔离：某次排队的 run 卡住时，不会把后续手动 Release 全部堵死。
+  # tag 推送仍按 ref 串行，避免同一版本重复发布。
+  group: release-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: false
 
 jobs:
