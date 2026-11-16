@@ -1,0 +1,104 @@
+name: Build Android
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Version tag, e.g. v2.0.3'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag, e.g. v2.0.3'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android build
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Prepare Android signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            mkdir -p android-client/keystore
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android-client/keystore/release.jks
+            cat > android-client/keystore.properties <<EOF
+          storeFile=keystore/release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+            echo "Android signing configured"
+          else
+            echo "No Android signing secrets; falling back to debug APK"
+          fi
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android SDK packages
+        run: |
+          # GitHub 的 ubuntu-24.04 已预装 SDK；只在缺包时安装，避免每次跑 sdkmanager。
+          SDKMANAGER="$(find "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools" -name sdkmanager -type f | head -n1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "找不到 sdkmanager，ANDROID_HOME=${ANDROID_HOME:-未设置}" >&2
+            exit 1
+          fi
+          if [ -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms/android-34" ] &&
+             [ -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/34.0.0" ]; then
+            echo "Android SDK 34 / build-tools 34.0.0 已预装"
+          else
+            yes | "$SDKMANAGER" --licenses >/dev/null || true
+            "$SDKMANAGER" "platforms;android-34" "build-tools;34.0.0"
+          fi
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      - name: Test and build APK
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          if [ -f keystore.properties ]; then
+            gradle :app:testDebugUnitTest :app:assembleRelease \
+              -PappVersionName="$VERSION" \
+              -PappVersionCode="${GITHUB_RUN_NUMBER}"
+          else
+            gradle :app:testDebugUnitTest :app:assembleDebug \
+              -PappVersionName="$VERSION" \
+              -PappVersionCode="${GITHUB_RUN_NUMBER}"
+          fi
+        working-directory: android-client
+
+      - name: Collect APK
+        run: |
+          mkdir -p android-client/artifacts
+          if [ -f android-client/keystore.properties ]; then
+            cp android-client/app/build/outputs/apk/release/app-release.apk \
+              android-client/artifacts/MqttNotify-Android-release.apk
+          else
+            cp android-client/app/build/outputs/apk/debug/app-debug.apk \
+              android-client/artifacts/MqttNotify-Android-debug.apk
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: android-client/artifacts/MqttNotify-Android-*.apk
+          if-no-files-found: error

@@ -52,11 +52,15 @@ https://github.com/xct258/MqttNotify/releases
 
 发布由 `.github/workflows/release.yml` 自动完成：
 
-- 推送 `v*` tag（例如 `v1.0.0`），或手动运行 Actions 的 **Release** workflow
+- 推送 `v*` tag（例如 `v2.0.3`），或手动运行 Actions 的 **Release** workflow
+- Release workflow 会同时调用 Windows / Android 两个可复用的构建 workflow
+- 也可以只构建单端：手动运行 **Build Windows** 或 **Build Android** workflow，
+  填版本 tag 即可；产物只作为 Actions artifact 保留，不发布 Release
+- Release workflow 手动运行时可以关闭 `publish_release`，只构建两端而不发版
 - 自动构建并上传：
   - `MqttNotify-Windows-x64.exe`：依赖框架单文件，需装 .NET 10 Desktop Runtime
   - `MqttNotify-Windows-x64-self-contained.exe`：自包含，免装运行时，体积较大
-  - `MqttNotify-Android-debug.apk`：debug 签名，可直接侧载
+  - `MqttNotify-Android-release.apk`：正式签名；未配置签名 secrets 时回退 debug APK
   - `SHA256SUMS.txt`：文件校验和
 
 本地构建产物请放 `dist/` 或 `artifacts/`，两者都已加入 `.gitignore`。

@@ -1,0 +1,71 @@
+name: Build Windows
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Version tag, e.g. v2.0.3'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag, e.g. v2.0.3'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows build
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+          # 缓存 NuGet 包；csproj / Directory.Build.props 变化时自动换 key
+          cache: true
+          cache-dependency-path: |
+            windows-client/**/*.csproj
+            windows-client/Directory.Build.props
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test windows-client/tests/MqttNotify.Core.Tests -c Release
+
+      - name: Publish framework-dependent
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $version = $tag.TrimStart('v')
+          dotnet publish windows-client/src/MqttNotify.Windows -c Release -r win-x64 `
+            --self-contained false -p:PublishSingleFile=true -p:Version=$version `
+            -o "$env:RUNNER_TEMP\win-fd"
+          New-Item -ItemType Directory -Force -Path windows-client/artifacts | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\win-fd\MqttNotify.exe" `
+            windows-client/artifacts/MqttNotify-Windows-x64.exe
+
+      - name: Publish self-contained
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          $version = $tag.TrimStart('v')
+          dotnet publish windows-client/src/MqttNotify.Windows -c Release -r win-x64 `
+            --self-contained true -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true -p:Version=$version `
+            -o "$env:RUNNER_TEMP\win-sc"
+          Copy-Item "$env:RUNNER_TEMP\win-sc\MqttNotify.exe" `
+            windows-client/artifacts/MqttNotify-Windows-x64-self-contained.exe
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: windows-client/artifacts/*.exe
+          if-no-files-found: error
