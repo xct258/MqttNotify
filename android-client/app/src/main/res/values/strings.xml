@@ -17,6 +17,10 @@
     <!-- 默认提醒标题（payload 无【待办提醒】前缀时使用） -->
     <string name="default_alert_title">新提醒</string>
 
+    <!-- 系统拦截后台启动前台服务时的恢复通知 -->
+    <string name="recovery_title">后台收信已中断</string>
+    <string name="recovery_text">点击立即恢复连接。若反复出现，请在设置中允许“忽略电池优化”和“精确闹钟”。</string>
+
     <!-- 主界面 -->
     <string name="ui_status_title">连接状态</string>
     <string name="ui_start">启动接收</string>
@@ -53,6 +57,13 @@
     <string name="ui_autostart">自启动 / 后台运行</string>
     <string name="ui_autostart_hint">国产 ROM 需手动允许；否则重启或清理后台后可能收不到消息</string>
     <string name="ui_autostart_action">去设置</string>
+    <string name="ui_reconnect">立即重连</string>
+    <string name="ui_diagnostics">运行诊断</string>
+    <string name="ui_watchdog_status">看门狗：每 %1$d 分钟；下次约 %2$s 分钟后</string>
+    <string name="ui_reconnect_count">本次进程主动重连：%1$d 次</string>
+    <string name="ui_keepalive_warning_title">后台保活未就绪</string>
+    <string name="ui_keepalive_warning_body">以下项目未开启：%1$s。息屏或系统深度休眠后，消息可能延迟甚至收不到。</string>
+    <string name="ui_keepalive_warning_action">去设置</string>
     <string name="ui_save">保存</string>
     <string name="ui_saved">设置已保存</string>
     <string name="ui_recent">最近提醒（保留最近 30 天）</string>

@@ -9,6 +9,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.xct258.mqttnotify.mqtt.MqttState
+import com.xct258.mqttnotify.service.MqttForegroundService
+import com.xct258.mqttnotify.service.MqttWatchdog
 import com.xct258.mqttnotify.ui.AppRoot
 import com.xct258.mqttnotify.ui.theme.MqttNotifyTheme
 
@@ -25,6 +28,19 @@ class MainActivity : ComponentActivity() {
             MqttNotifyTheme {
                 AppRoot()
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 打开 App 是最可靠的“自愈”时机：如果用户之前开着接收、但进程/闹钟被 ROM
+        // 清掉了，这里立刻把前台服务和看门狗补回来，不必等下一次系统维护窗口。
+        if (MqttWatchdog.isEnabled(this) &&
+            MqttState.status.value.status == MqttState.Status.STOPPED
+        ) {
+            MqttForegroundService.start(this)
+        } else if (MqttWatchdog.isEnabled(this)) {
+            MqttWatchdog.ensureScheduled(this)
         }
     }
 

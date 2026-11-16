@@ -18,6 +18,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.hivemq.client.mqtt.MqttClient
 import com.hivemq.client.mqtt.MqttClientSslConfig
+import com.hivemq.client.mqtt.MqttGlobalPublishFilter
 import com.hivemq.client.mqtt.MqttWebSocketConfig
 import com.hivemq.client.mqtt.datatypes.MqttQos
 import com.hivemq.client.mqtt.lifecycle.MqttDisconnectSource
@@ -64,7 +65,7 @@ import javax.net.ssl.HostnameVerifier
  *
  * 职责：
  *  1. 以前台服务形式保活，读取 [SettingsRepository] 中的配置；
- *  2. 建立 MQTT 3.1.1 持久会话并订阅 `{base}/#`（QoS 1、KeepAlive 60s）；
+ *  2. 建立 MQTT 3.1.1 持久会话并订阅 `{base}/#`（QoS 1、KeepAlive 30s）；
  *  3. 收到消息即解析、记录到 [MqttState] 并弹出系统通知；
  *  4. 断线由 HiveMQ 自动重连（指数退避），首次连接失败则本地退避重试；
  *  5. 网络切换立即重连、心跳失败/链路假死主动重连，配合 [MqttWatchdog] 兜底。
@@ -104,6 +105,9 @@ class MqttForegroundService : Service() {
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var currentNetwork: Network? = null
+    /** 每次 onAvailable 自增，用来判断 onLost 的宽限期内是否已经有新网络接替。 */
+    @Volatile
+    private var networkEventSeq: Long = 0L
     private var wakeupReceiver: BroadcastReceiver? = null
 
     /** 建连阶段短暂持有，避免设备刚被闹钟唤醒又立刻睡回去。 */
@@ -127,13 +131,14 @@ class MqttForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         NotificationHelper.createChannels(this)
         startForegroundCompat(serviceNotification(MqttState.Status.STOPPED, ""))
         // 用户点了「启动接收」时 start() 已把开关置 true；这里只补排闹钟，
         // 覆盖 START_STICKY 系统重启等场景。不要在 onCreate 里强制置 true，
         // 否则用户点「停止接收」后若系统又拉起服务，会被意外重新启用。
         if (MqttWatchdog.isEnabled(this)) {
-            MqttWatchdog.schedule(this)
+            MqttWatchdog.ensureScheduled(this)
         }
         observeStatus()
         registerNetworkCallback()
@@ -176,6 +181,11 @@ class MqttForegroundService : Service() {
         // 连接/已连接的协程，导致「一启动就重连」。
         val snapshot = MqttState.status.value
         startForegroundCompat(serviceNotification(snapshot.status, snapshot.detail))
+        // 服务每次被拉起（包括 START_STICKY / 看门狗）都确保还有一个未来闹钟；
+        // 如果已有较近的闹钟则保持不动，避免频繁重置倒计时。
+        if (MqttWatchdog.isEnabled(this)) {
+            MqttWatchdog.ensureScheduled(this)
+        }
         return START_STICKY
     }
 
@@ -185,22 +195,24 @@ class MqttForegroundService : Service() {
         // 用户手动点「停止接收」走 ACTION_STOP，不会触发这里。
         Log.i(TAG, "任务被移除，保持 MQTT 前台服务")
         if (MqttWatchdog.isEnabled(this)) {
-            MqttWatchdog.schedule(this)
-            runCatching {
-                val restart = Intent(applicationContext, MqttForegroundService::class.java)
-                    .setAction(ACTION_START)
-                ContextCompat.startForegroundService(applicationContext, restart)
-            }.onFailure { Log.w(TAG, "任务移除后重启服务失败", it) }
+            // start() 会重排看门狗，并在系统拦截后台启动 FGS 时发恢复通知。
+            start(applicationContext)
         }
     }
 
     override fun onDestroy() {
+        instance = null
         scope.cancel()
         unregisterNetworkCallback()
         unregisterWakeupReceiver()
         runBlocking { withTimeoutOrNull(1_000L) { teardownClient(announceOffline = true) } }
         releaseConnectWakeLock()
         MqttState.setStatus(MqttState.Status.STOPPED, "")
+        // 被系统回收（非用户主动停止）时，保证看门狗仍然有效；
+        // 用户主动停止会先把 enabled 置 false，因此这里不会重新排程。
+        if (MqttWatchdog.isEnabled(this)) {
+            MqttWatchdog.ensureScheduled(this)
+        }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
@@ -227,7 +239,7 @@ class MqttForegroundService : Service() {
      * 先拆掉旧连接，未配置则提示后退出；已配置则循环重试直到连上为止
      * （连上后交给 HiveMQ 的自动重连接管）。
      *
-     * 退避等待期间如果网络恢复（[retrySignal]），立即醒来重试，不再死等 60s。
+     * 退避等待期间如果网络恢复（[retrySignal]），立即醒来重试，不再死等满 30s。
      */
     private suspend fun connectWithRetry(settings: AppSettings) {
         teardownClient()
@@ -279,6 +291,7 @@ class MqttForegroundService : Service() {
      */
     private fun forceReconnect(reason: String) {
         Log.i(TAG, "主动重连：$reason")
+        MqttState.noteReconnectRequested()
         MqttState.setStatus(MqttState.Status.RECONNECTING, reason)
         reconnectSignal.update { it + 1L }
     }
@@ -331,13 +344,18 @@ class MqttForegroundService : Service() {
             // Will 可能迟到，把刚上线的状态覆盖成离线，管理页就会出现「能收消息但显示离线」。
             // 异常断线改由 retained 心跳 + 服务端 TTL（默认 180s）兜底；
             // 用户主动停止时仍会 publish 一条实时的 online=false。
-            .automaticReconnectWithDefaultConfig()
+            //
+            // 刻意不用 HiveMQ 的 automaticReconnect：它和本地的 collectLatest 重连
+            // 同时工作时，可能出现“旧 client 自动重连 + 新 client 刚建连”两个连接
+            // 抢同一个 client id，broker 会把它们互相踢下线，形成 1 秒一次的连接风暴。
+            // 这里由 connectWithRetry 独占重连生命周期，保证任意时刻最多一个 client。
             .addConnectedListener {
                 if (gen == generation) {
+                    Log.i(TAG, "MQTT 已连接/重连成功：$endpoint")
                     MqttState.setStatus(MqttState.Status.CONNECTED, endpoint)
                     MqttState.markActivity()
-                    // HiveMQ 自动重连不会重新执行 establish。这里强制补一次在线状态，
-                    // 否则 broker 上的 retained 可能还是断线时的 online=false。
+                    // 每次（重）连接都强制补一次在线状态，否则 broker 上的 retained
+                    // 可能还是断线时的 online=false。
                     publishPresenceNow("MQTT 连接成功/重连成功", force = true)
                 }
             }
@@ -346,10 +364,20 @@ class MqttForegroundService : Service() {
                     // getCause() 为 @NotNull；用 source 区分主动断开(USER)与意外断开
                     val byUser = ctx.source == MqttDisconnectSource.USER
                     Log.w(TAG, "连接断开（source=${ctx.source}）", ctx.cause)
-                    MqttState.setStatus(
-                        if (byUser) MqttState.Status.STOPPED else MqttState.Status.RECONNECTING,
-                        if (byUser) "连接已断开" else "连接断开，正在重连…",
-                    )
+                    when {
+                        byUser ->
+                            MqttState.setStatus(MqttState.Status.STOPPED, "连接已断开")
+
+                        // 已连上后掉线：立即交给本地重连循环。
+                        // 不用 HiveMQ automaticReconnect，避免它和本地循环各建一个连接。
+                        MqttState.status.value.status == MqttState.Status.CONNECTED ->
+                            forceReconnect("连接断开（${ctx.source}）")
+
+                        // 首次连接/退避阶段：异常由 connectWithRetry 统一处理，
+                        // 这里只更新展示状态，避免双重触发重连。
+                        else ->
+                            MqttState.setStatus(MqttState.Status.RECONNECTING, "连接断开，正在重连…")
+                    }
                 }
             }
 
@@ -378,13 +406,20 @@ class MqttForegroundService : Service() {
 
         client = newClient
 
+        // 全局 publish 回调必须在 connect 之前注册：持久会话重连时，broker 可能在
+        // CONNACK 之后立刻补发离线队列，此时 subscribeWith() 还没执行完。
+        // 如果只靠 subscribe 的 callback，这段窗口里的消息会被静默丢弃。
+        newClient.publishes(MqttGlobalPublishFilter.ALL) { publish -> handlePublish(publish) }
+
         newClient.connectWith()
             // 持久会话：断网/Doze/进程被杀期间，broker 会把 QoS1 消息排队，
             // 重连后立即补收。client id 安装期固定，所以会话可以跨进程恢复。
             .cleanSession(false)
             .keepAlive(KEEP_ALIVE_SECONDS)
             .send()
-            .await()
+            // 没有超时的 await 会让 DNS 卡住 / 半开连接把重试循环永远挂住，
+            // 超时后由 connectWithRetry 拆掉半成品连接并继续退避重试。
+            .await(CONNECT_TIMEOUT_MS)
 
         // 持久会话会保留旧订阅。用户改过主题时先退订旧主题，避免新旧主题重复收信。
         val previousTopic = SubscriptionStore.lastTopic(this)
@@ -393,16 +428,15 @@ class MqttForegroundService : Service() {
                 newClient.unsubscribeWith()
                     .topicFilter(previousTopic)
                     .send()
-                    .await()
+                    .await(SUBSCRIBE_TIMEOUT_MS)
             }.onFailure { Log.w(TAG, "取消旧订阅 $previousTopic 失败", it) }
         }
 
         newClient.subscribeWith()
             .topicFilter(subscribeTopic)
             .qos(MqttQos.AT_LEAST_ONCE)
-            .callback { publish -> handlePublish(publish) }
             .send()
-            .await()
+            .await(SUBSCRIBE_TIMEOUT_MS)
         SubscriptionStore.setLastTopic(this, subscribeTopic)
         MqttState.markActivity()
 
@@ -426,6 +460,7 @@ class MqttForegroundService : Service() {
 
         presenceJob?.cancel()
         presenceJob = scope.launch {
+            var consecutiveFailures = 0
             while (isActive) {
                 delay(PRESENCE_HEARTBEAT_MS)
                 val current = client ?: break
@@ -441,22 +476,29 @@ class MqttForegroundService : Service() {
                     )
                 }.isSuccess
                 if (ok) {
+                    consecutiveFailures = 0
                     notePresenceSent()
                     MqttState.markActivity()
                 } else {
-                    // 单次心跳失败不要让循环退出：HiveMQ 会自动重连，
-                    // 重连后的 ConnectedListener 会立刻补发 retained 在线状态。
-                    // 真正的断线由 DisconnectedListener / 链路假死检测兜底。
-                    Log.w(TAG, "在线心跳失败，等待下次心跳或自动重连")
+                    consecutiveFailures++
+                    Log.w(TAG, "在线心跳失败（连续 $consecutiveFailures 次）")
+                    // 单次失败可能只是弱网抖动；连续两次失败说明 socket 很可能已经
+                    // 半死，继续等 HiveMQ 的 KeepAlive 超时太慢，直接踢一脚重连。
+                    if (consecutiveFailures >= PRESENCE_FAILURES_BEFORE_RECONNECT) {
+                        forceReconnect("在线心跳连续失败")
+                        return@launch
+                    }
                 }
             }
         }
 
-        MqttState.setStatus(
-            MqttState.Status.CONNECTED,
-            "$endpoint · ${settings.subscribeTopic}",
-        )
-        Log.i(TAG, "已连接 $endpoint，订阅 ${settings.subscribeTopic}（持久会话）")
+        if (gen == generation) {
+            MqttState.setStatus(
+                MqttState.Status.CONNECTED,
+                "$endpoint · ${settings.subscribeTopic}",
+            )
+            Log.i(TAG, "已连接 $endpoint，订阅 ${settings.subscribeTopic}（持久会话）")
+        }
     }
 
     private suspend fun publishPresence(
@@ -556,6 +598,9 @@ class MqttForegroundService : Service() {
         // 能收到消息说明链路一定活着，立即把在线状态刷新给管理页，
         // 不必等下一次 60 秒心跳（休眠/ROM 冻结时心跳可能被延后）。
         publishPresenceNow("收到消息")
+        // 消息到达顺带自愈：如果闹钟被 ROM 清掉了，这里补一个未来自检。
+        // ensureScheduled 不会重置仍然有效的闹钟，因此高频消息不会饿死看门狗。
+        MqttWatchdog.ensureScheduled(this)
         val topic = publish.topic.toString()
         val parsed = MqttMessageParser.parse(
             topic,
@@ -598,16 +643,39 @@ class MqttForegroundService : Service() {
             override fun onAvailable(network: Network) {
                 val previous = currentNetwork
                 currentNetwork = network
+                networkEventSeq++
                 val switched = previous != null && previous != network
                 Log.i(TAG, "默认网络可用：$network（切换=$switched）")
                 scope.launch { handleNetworkAvailable(switched) }
             }
 
             override fun onLost(network: Network) {
-                // 不要在这里直接把状态改成「重连中」：Wi-Fi 切移动数据时，
+                // 不要立刻把状态改成「重连中」：Wi-Fi 切移动数据时，
                 // 新网络的 onAvailable 可能已经先到，onLost 后到会覆盖掉正常状态。
-                // 真正的断线交给 MQTT 的 DisconnectedListener / 心跳假死检测。
+                // 等一个短暂的宽限期，确认真的没有任何可用网络后再重连。
+                // 注意：这里先保留 currentNetwork（旧网络），让随后到达的 onAvailable
+                // 能正确判断出“换了网”；只有在确认没有新网络后才把它清空。
                 Log.w(TAG, "默认网络断开：$network")
+                val seqAtLoss = networkEventSeq
+                scope.launch {
+                    delay(NETWORK_LOST_GRACE_MS)
+                    if (networkEventSeq != seqAtLoss) return@launch
+                    if (currentNetwork != null && currentNetwork != network) return@launch
+                    val active = connectivityManager.activeNetwork
+                    if (active != null && active != network) {
+                        currentNetwork = active
+                        return@launch
+                    }
+                    currentNetwork = null
+                    when (MqttState.status.value.status) {
+                        MqttState.Status.CONNECTED ->
+                            forceReconnect("网络已断开")
+                        MqttState.Status.CONNECTING,
+                        MqttState.Status.RECONNECTING,
+                        MqttState.Status.FAILED -> retrySignal.trySend(Unit)
+                        MqttState.Status.STOPPED -> Unit
+                    }
+                }
             }
         }
 
@@ -635,14 +703,19 @@ class MqttForegroundService : Service() {
             connected && !switched -> Unit
             // 换网后旧 socket 基本已失效，立即重连，不等 KeepAlive 超时
             connected -> forceReconnect("网络已切换")
-            // 正在退避重试：别等满 60s，立刻再试一次
-            else -> retrySignal.trySend(Unit)
+            // 首次连接还在进行：只允许它跳过本地退避，不要拆掉半成品连接
+            MqttState.status.value.status == MqttState.Status.CONNECTING ->
+                retrySignal.trySend(Unit)
+            // 服务刚创建、还没开始状态机时不要插一脚，onCreate 会正常发起连接
+            MqttState.status.value.status == MqttState.Status.STOPPED -> Unit
+            // 本地退避最长 30s；网络恢复后直接重建连接，把空窗压到秒级。
+            else -> forceReconnect("网络恢复")
         }
     }
 
     /**
      * 用户解锁 / 亮屏时立刻补一次：休眠期间错过的消息在重连后马上弹出，
-     * 不用等下一次 15 分钟看门狗。
+     * 不用等下一次 9–15 分钟看门狗。
      */
     private fun registerWakeupReceiver() {
         val receiver = object : BroadcastReceiver() {
@@ -700,7 +773,12 @@ class MqttForegroundService : Service() {
                 if (snapshot.status == MqttState.Status.CONNECTED &&
                     !MqttState.isConnectionAlive()
                 ) {
-                    Log.w(TAG, "连接超过 ${MqttState.CONNECT_STALE_MS}ms 无成功收发，主动重连")
+                    val age = MqttState.activityAgeMs()
+                    Log.w(
+                        TAG,
+                        "连接超过 ${MqttState.CONNECT_STALE_MS}ms 无成功收发" +
+                            "（实际 ${age ?: "未知"}ms），主动重连",
+                    )
                     forceReconnect("连接假死")
                 }
             }
@@ -749,15 +827,26 @@ class MqttForegroundService : Service() {
     companion object {
         private const val TAG = "MqttService"
         private const val NOTIFICATION_ID = 1001
-        private const val KEEP_ALIVE_SECONDS = 60
-        private const val MAX_BACKOFF_MS = 60_000L
+        // Broker 在 1.5×KeepAlive 后才判定旧连接死亡；60s 会让断网瞬间的
+        // “僵尸连接”窗口长达 90s，期间发布的消息可能发到已失效的 socket。
+        // 30s 把窗口压到 45s，同时 PINGREQ 仍然很轻量。
+        private const val KEEP_ALIVE_SECONDS = 30
+        private const val MAX_BACKOFF_MS = 30_000L
+        private const val CONNECT_TIMEOUT_MS = 15_000L
+        private const val SUBSCRIBE_TIMEOUT_MS = 10_000L
         private const val PRESENCE_HEARTBEAT_MS = 60_000L
         private const val PRESENCE_MIN_INTERVAL_MS = 20_000L
-        private const val PRESENCE_PUBLISH_TIMEOUT_MS = 10_000L
-        private const val LIVENESS_CHECK_MS = 30_000L
+        private const val PRESENCE_PUBLISH_TIMEOUT_MS = 5_000L
+        private const val PRESENCE_FAILURES_BEFORE_RECONNECT = 2
+        private const val LIVENESS_CHECK_MS = 15_000L
         private const val NETWORK_DEBOUNCE_MS = 3_000L
+        private const val NETWORK_LOST_GRACE_MS = 5_000L
         private const val CONNECT_WAKE_LOCK_TIMEOUT_MS = 3 * 60_000L
         private const val PERSIST_DEBOUNCE_MS = 200L
+
+        /** 当前存活的实例；看门狗在同进程时可以直接触发重连，不必重新启动服务。 */
+        @Volatile
+        private var instance: MqttForegroundService? = null
 
         const val ACTION_START = "com.xct258.mqttnotify.action.START"
         const val ACTION_STOP = "com.xct258.mqttnotify.action.STOP"
@@ -767,22 +856,48 @@ class MqttForegroundService : Service() {
         fun start(context: Context) {
             MqttWatchdog.setEnabled(context, true)
             val intent = Intent(context, MqttForegroundService::class.java).setAction(ACTION_START)
-            runCatching { ContextCompat.startForegroundService(context, intent) }
-                .onFailure { Log.w(TAG, "启动前台服务失败", it) }
+            startForegroundService(context, intent, "启动前台服务失败")
         }
 
         /** 看门狗闹钟到点后拉起服务；ACTION_WATCHDOG 会再次校验用户是否仍想接收。 */
         fun startFromWatchdog(context: Context) {
             val intent = Intent(context, MqttForegroundService::class.java)
                 .setAction(MqttWatchdog.ACTION_WATCHDOG)
-            runCatching { ContextCompat.startForegroundService(context, intent) }
-                .onFailure { Log.w(TAG, "看门狗拉起前台服务失败", it) }
+            startForegroundService(context, intent, "看门狗拉起前台服务失败")
+        }
+
+        /**
+         * 服务进程还活着：直接走内存里的重连接口，成功率最高。
+         * 进程已经被杀：返回 false，由调用方重新启动前台服务。
+         */
+        fun forceReconnectIfRunning(reason: String): Boolean {
+            val service = instance ?: return false
+            service.forceReconnect(reason)
+            return true
+        }
+
+        /** 用户在界面/排错时请求立刻重连；服务没在跑就把它拉起来。 */
+        fun reconnect(context: Context) {
+            if (forceReconnectIfRunning("用户请求重连")) return
+            MqttWatchdog.setEnabled(context, true)
+            val intent = Intent(context, MqttForegroundService::class.java)
+                .setAction(ACTION_RECONNECT)
+            startForegroundService(context, intent, "重连时启动前台服务失败")
         }
 
         /** 停止服务并断开连接，同时关闭看门狗（用户明确不想再收）。 */
         fun stop(context: Context) {
             MqttWatchdog.setEnabled(context, false)
             context.stopService(Intent(context, MqttForegroundService::class.java))
+        }
+
+        private fun startForegroundService(context: Context, intent: Intent, failureLog: String) {
+            runCatching { ContextCompat.startForegroundService(context, intent) }
+                .onFailure {
+                    Log.w(TAG, "$failureLog（尝试发送恢复通知）", it)
+                    // Android 12+ 后台启动 FGS 受限时，用可点击通知让用户手动恢复。
+                    NotificationHelper.notifyRecoveryNeeded(context)
+                }
         }
     }
 }

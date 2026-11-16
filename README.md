@@ -33,7 +33,7 @@ push-server 把待办提醒 / 服务通知通过 MQTT 下行发布，这里的�
 | task_id | 主题的最后一段（尾段） |
 | 消息分类 | push-server API 必填 `category`：`service`（服务通知）/ `todo`（待办提醒）；以后可扩展新值 |
 | payload | `todo`：`【待办提醒】{title}\n{message}`；`service`：`【服务通知】{server}\n【服务】{title}\n【状态】{status}\n\n{message}` |
-| 订阅参数 | QoS 1、`retained = false`、KeepAlive 60s、匿名（无账号密码）；Android 使用持久会话（`cleanSession=false`）以接收离线队列，Windows 仍为 clean session |
+| 订阅参数 | QoS 1、`retained = false`、KeepAlive 60s（Android 收紧到 30s，更快发现断网）、匿名（无账号密码）；Android 使用持久会话（`cleanSession=false`）以接收离线队列，Windows 仍为 clean session |
 | 在线状态 | 连接后向 `$presence/clients/{client_id}` 发布 retained JSON；60s QoS1 心跳。Android 不用 Will（异常断线靠服务端 TTL，默认 180s，主动停止实时上报离线），Windows 仍用 Will 标记离线 |
 | Client ID | `{自定义前缀或 windows/android}_{安装期固定随机 8 位}`；后缀是设备唯一标识，清空数据/重装后才会变化 |
 
@@ -87,6 +87,6 @@ gradle :app:assembleDebug
 
 - Windows 端需要 Windows 才能运行（WPF / 托盘通知 / 自启动注册表项均未在跨平台环境验证过）。
 - 首版范围：常驻连接 + 系统通知 + 设置页 + 最近提醒（本地落盘）；**不含**离线 REST 拉取。
-- Android 端已叠加网络切换重连、15 分钟看门狗、持久会话和 Doze 白名单引导；
+- Android 端已叠加网络切换即时重连、9–15 分钟看门狗、持久会话和 Doze 白名单引导；
   但用户在系统设置里「强行停止」应用后，系统会清除闹钟，任何第三方应用都无法自恢复。
 - 下发提醒依赖 push-server 与移动/桌面端的中间可达性；局域网内请用 WebSocket 9001。

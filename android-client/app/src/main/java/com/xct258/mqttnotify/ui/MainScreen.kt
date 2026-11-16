@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -66,6 +67,7 @@ import com.xct258.mqttnotify.data.AppSettings
 import com.xct258.mqttnotify.data.MqttTransport
 import com.xct258.mqttnotify.mqtt.MqttMessageParser
 import com.xct258.mqttnotify.mqtt.MqttState
+import com.xct258.mqttnotify.service.MqttWatchdog
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -101,10 +103,15 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     var notificationsEnabled by remember {
         mutableStateOf(KeepAliveSettings.areNotificationsEnabled(context))
     }
+    var watchdogIntervalMin by remember { mutableStateOf(0L) }
+    var watchdogNextMin by remember { mutableStateOf<Long?>(null) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         needsBatteryExemption = !isIgnoringBatteryOptimizations(context)
         exactAlarmGranted = KeepAliveSettings.canScheduleExactAlarms(context)
         notificationsEnabled = KeepAliveSettings.areNotificationsEnabled(context)
+        watchdogIntervalMin = MqttWatchdog.intervalMs(context) / 60_000L
+        watchdogNextMin = MqttWatchdog.nextScheduledInMs(context)
+            ?.let { (it + 59_999L) / 60_000L }
     }
 
     LaunchedEffect(settings) {
@@ -129,6 +136,12 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     }
     val running = status.status != MqttState.Status.STOPPED
     val savedMessage = stringResource(R.string.ui_saved)
+    val keepAliveIssues = mutableListOf<String>()
+    if (needsBatteryExemption) keepAliveIssues += stringResource(R.string.ui_battery_optimization)
+    if (KeepAliveSettings.supportsExactAlarms() && !exactAlarmGranted) {
+        keepAliveIssues += stringResource(R.string.ui_exact_alarm)
+    }
+    if (!notificationsEnabled) keepAliveIssues += stringResource(R.string.ui_notifications)
 
     Scaffold(
         topBar = {
@@ -190,6 +203,15 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (!showSettings && running && keepAliveIssues.isNotEmpty()) {
+                item {
+                    KeepAliveWarningCard(
+                        issues = keepAliveIssues,
+                        onOpenSettings = { showSettings = true },
+                    )
+                }
+            }
+
             if (!showSettings && !running) {
                 item {
                     Text(
@@ -227,6 +249,11 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             modifier = Modifier.weight(1f),
                         ) { Text(stringResource(R.string.ui_stop)) }
                     }
+                    OutlinedButton(
+                        onClick = { viewModel.reconnect() },
+                        enabled = running,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.ui_reconnect)) }
                     Text(
                         text = "启动/停止只影响当前连接，不会修改下面的配置。",
                         style = MaterialTheme.typography.bodySmall,
@@ -417,6 +444,37 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         onClick = { KeepAliveSettings.openAutoStartSettings(context) },
                     )
 
+                    if (running) {
+                        HorizontalDivider()
+                        Text(
+                            text = stringResource(R.string.ui_diagnostics),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.ui_watchdog_status,
+                                watchdogIntervalMin,
+                                watchdogNextMin?.toString() ?: "—",
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.ui_reconnect_count,
+                                MqttState.reconnectCount,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = status.detail.ifBlank { "—" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
                     Button(
                         onClick = {
                             viewModel.save(
@@ -483,6 +541,43 @@ private fun statusColor(status: MqttState.Status): Color = when (status) {
     MqttState.Status.FAILED -> MaterialTheme.colorScheme.error
     MqttState.Status.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
     else -> MaterialTheme.colorScheme.tertiary
+}
+
+@Composable
+private fun KeepAliveWarningCard(
+    issues: List<String>,
+    onOpenSettings: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.ui_keepalive_warning_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Text(
+                text = stringResource(
+                    R.string.ui_keepalive_warning_body,
+                    issues.joinToString("、"),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            OutlinedButton(onClick = onOpenSettings) {
+                Text(stringResource(R.string.ui_keepalive_warning_action))
+            }
+        }
+    }
 }
 
 @Composable

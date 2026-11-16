@@ -1,8 +1,10 @@
 package com.xct258.mqttnotify.service
 
+import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.xct258.mqttnotify.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -24,9 +26,15 @@ class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
+        val exactAlarmGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED
+        } else {
+            null
+        }
         if (action != Intent.ACTION_BOOT_COMPLETED &&
             action != QUICKBOOT_POWERON &&
-            action != Intent.ACTION_MY_PACKAGE_REPLACED
+            action != Intent.ACTION_MY_PACKAGE_REPLACED &&
+            action != exactAlarmGranted
         ) {
             return
         }
@@ -38,9 +46,11 @@ class BootReceiver : BroadcastReceiver() {
                 val settings = SettingsRepository.get(appContext).settings.first()
 
                 val shouldStart = when (action) {
-                    // 覆盖安装：只要之前用户点过「启动接收」，升级后继续接收
-                    Intent.ACTION_MY_PACKAGE_REPLACED ->
-                        settings.autoStartOnBoot || MqttWatchdog.isEnabled(appContext)
+                    // 覆盖安装：只有升级前真的在接收才继续；用户主动停止过就保持停止
+                    Intent.ACTION_MY_PACKAGE_REPLACED -> MqttWatchdog.isEnabled(appContext)
+
+                    // 用户刚授予精确闹钟权限：系统会删掉旧的精确闹钟，立刻补排并恢复服务
+                    exactAlarmGranted -> MqttWatchdog.isEnabled(appContext)
 
                     // 重启：严格遵循「开机自动启动」开关
                     else -> settings.autoStartOnBoot
@@ -49,8 +59,10 @@ class BootReceiver : BroadcastReceiver() {
                 if (shouldStart && settings.isValid) {
                     MqttForegroundService.start(appContext)
                     Log.i(TAG, "$action：已拉起 MQTT 前台服务")
-                } else if (!settings.isValid || !settings.autoStartOnBoot) {
-                    // 配置不完整或用户关掉了开机自启：别让看门狗反复做无用唤醒
+                } else if (action == Intent.ACTION_BOOT_COMPLETED ||
+                    action == QUICKBOOT_POWERON
+                ) {
+                    // 重启时用户关掉了开机自启：别让看门狗反复做无用唤醒
                     MqttWatchdog.setEnabled(appContext, false)
                     Log.i(TAG, "$action：不满足自动启动条件，保持停止")
                 }

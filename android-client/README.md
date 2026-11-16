@@ -28,7 +28,7 @@
 | QoS | 1（至少一次） |
 | Clean Session | `false`（Android 使用持久会话，离线期间由 broker 排队 QoS1 消息） |
 | Retained | `false` |
-| Keep Alive | 60s |
+| Keep Alive | 30s（Android，加快发现僵尸连接；Broker 侧上限 60s，Windows 仍为 60s） |
 
 **下行消息**：按 `category` 分两种纯文本格式；主题尾段即 `task_id`。
 
@@ -117,11 +117,11 @@ location /mqtt {
 
 ## 2. 功能范围（首版）
 
-- ✅ 前台服务常驻连接：断线自动重连（HiveMQ 指数退避），首次连不上本地退避重试
+- ✅ 前台服务常驻连接：断线后由本地重连循环指数退避重试（2s→30s 封顶），网络恢复立即重连
 - ✅ 后台可靠性套件：
   - 网络切换（Wi-Fi ↔ 移动数据）立即重连，不等 KeepAlive 超时；
-  - 心跳失败 / 连接假死（3 分钟无成功收发）主动重连；
-  - `AlarmManager` 看门狗每 15 分钟自检，进程被杀后自动拉起服务；
+  - 连续 2 次心跳失败 / 连接假死（2 分钟无成功收发）主动重连；
+  - `AlarmManager` 看门狗约 9–15 分钟自检（取决于精确闹钟权限），进程被杀后自动拉起服务；
   - 持久会话（`cleanSession=false`），离线期间的 QoS1 消息由 broker 排队补发；
   - 建连阶段短暂持有 WakeLock，避免设备刚被闹钟唤醒又睡回去。
 - ✅ 系统通知：高优先级「待办提醒」渠道 + 低优先级「连接状态」常驻渠道（Android 13+ 会请求通知权限）
@@ -270,38 +270,48 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 
 ## 6. 关键实现说明
 
-### 6.1 后台及时收信的六道防线
+### 6.1 后台及时收信的七道防线
 
 | 防线 | 触发条件 | 行为 |
 | --- | --- | --- |
 | 1. 前台服务 | 用户启动后常驻 | `specialUse` FGS + 常驻通知，系统不轻易回收 |
 | 2. 网络回调 | 默认网络切换/恢复 | `registerDefaultNetworkCallback` 立即重连，空窗从分钟级降到秒级 |
-| 3. 心跳/假死检测 | 单次心跳失败不退出循环；连续 3 分钟无成功收发 | 主动拆连接重连，不等 TCP KeepAlive 超时 |
+| 3. 心跳/假死检测 | 连续 2 次心跳失败；或 2 分钟无成功收发 | 主动拆连接重连，不等 TCP KeepAlive 超时 |
 | 4. 持久会话 | 断网/Doze/进程被杀 | broker 排队 QoS1 消息，重连后立即补收 |
-| 5. 看门狗 | 每 15 分钟（`allowWhileIdle`） | 进程被杀则拉起服务；连接假死则踢一脚 |
+| 5. 看门狗 | 精确闹钟：9 分钟起（Doze 下可能延后）；无权限：约 15 分钟 | 进程被杀则拉起服务；连接假死/卡住则踢一脚 |
 | 6. 系统白名单 | 用户授权 | 忽略电池优化（Doze 联网）、精确闹钟、厂商自启动 |
+| 7. 失败兜底 | 系统拦截后台启动 FGS | 发一条可点击的“恢复连接”通知，用户点一下即可拉回 |
 
 - **保活**：前台服务 + 常驻通知。Android 14+ 声明 `foregroundServiceType="specialUse"`
   （长连接消息接收不属于 `dataSync`，且 `dataSync` 在 Android 15 有 6h/24h 限制）。
-- **重连**：连接建立后由 HiveMQ `automaticReconnectWithDefaultConfig()` 负责指数退避重连；
-  首次连接失败由 `MqttForegroundService.connectWithRetry` 本地退避（2s→60s 封顶）重试。
-  退避期间只要网络恢复，会通过 `retrySignal` 提前唤醒，不再死等。
+- **重连**：刻意关闭 HiveMQ 的 `automaticReconnect`，由
+  `MqttForegroundService.connectWithRetry` **独占**重连生命周期（2s→30s 指数退避）。
+  这样任意时刻最多只有一个 client，不会出现旧 client 自动重连和新 client 抢同一个
+  client id、把 broker 变成“互踢”连接风暴的问题。连接/订阅都带 10–15s 超时，
+  避免 DNS 卡死或半开连接把重试循环永远挂住。网络恢复、亮屏、心跳失败、看门狗
+  都会通过 `forceReconnect` 直接重建连接，忽略当前退避。
 - **网络切换**：`ConnectivityManager.NetworkCallback.onAvailable` 在网络切换后 3 秒内主动
-  重连一次；`onLost` 立即把 UI 置为「重连中」。
+  重连一次；`onLost` 等 5 秒宽限期，确认没有新网络后立即重连，避免 Wi-Fi→移动数据的
+  交接瞬间误判。
 - **在线状态**：`$presence/clients/{client_id}` 全部用 QoS1 + retained 发布：
-  - 上线、每 60 秒心跳、收到消息、MQTT 自动重连成功、亮屏/解锁都会刷新；
+  - 上线、每 60 秒心跳、收到消息、MQTT 重连成功、亮屏/解锁都会刷新；
   - 收到消息触发的刷新做了 20 秒合并，补收大量消息时不会刷屏；
   - retained 保证 push-server 重启后一订阅就能看到最新在线状态，而不是读到旧的 offline；
-  - 单次心跳失败不会终止心跳协程，交给 HiveMQ 自动重连和链路假死检测兜底；
+  - 单次心跳失败继续等下一次；**连续 2 次失败**说明 socket 很可能半死，立即主动重连；
+  - 亮屏/解锁、收到消息、重连成功都会顺手补一次在线状态；
   - **不使用 MQTT Will**：Will 的 `ts` 是连接开始时间，重连后旧连接的 Will 迟到会误报离线；
     异常断线由 retained 心跳 + 服务端 TTL 兜底，主动停止才实时发 `online=false`。
 - **持久会话**：`cleanSession=false`，client id 安装期固定。换订阅主题时会先退订
   `SubscriptionStore` 里记录的旧主题，避免持久会话把新旧主题一起保留。
   注意 Mosquitto 默认只把离线队列放在内存里，broker 重启后队列会丢；
   需要更强保证时仍建议接 REST 补拉。
-- **看门狗**：`MqttWatchdog` 用 `AlarmManager.setExactAndAllowWhileIdle`（有精确闹钟权限）
-  或 `setAndAllowWhileIdle`（无权限）每 15 分钟自检。精确闹钟广播是 Android 12+
-  允许后台启动前台服务的豁免场景；进程被系统杀掉后，闹钟仍会把服务拉起来。
+- **看门狗**：`MqttWatchdog` 用 `AlarmManager.setExactAndAllowWhileIdle`（有精确闹钟权限，
+  9 分钟起，Doze 下系统可能延后）或 `setAndAllowWhileIdle`（无权限，约 15 分钟一次）自检。
+  精确闹钟权限被授予/撤销时会自动补排对应类型的闹钟。
+  精确闹钟广播是 Android 12+ 允许后台启动前台服务的豁免场景；进程被系统杀掉后，
+  闹钟仍会把服务拉起来。若服务进程还活着但连接假死/卡在连接中，直接走内存重连接口，
+  不必重启服务；若系统拦截后台启动 FGS，则发“恢复连接”通知兜底。
+  `ensureScheduled()` 只在没有未来闹钟时补排，因此高频消息/亮屏不会把自检无限推迟。
   用户点「停止接收」会同时取消看门狗，不会被反复唤醒。
 - **WakeLock**：只在建连阶段持有最多 3 分钟的 `PARTIAL_WAKE_LOCK`，连上即释放，
   避免「闹钟把设备唤醒 → 服务开始连接 → 设备立刻睡回去」。
@@ -326,7 +336,7 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 ## 7. 已知限制
 
 - **Doze / 电池优化**：没有加入白名单时，系统深度休眠会暂停应用联网，消息只能等下一次
-  看门狗唤醒（最长约 15 分钟）或用户亮屏后补收。务必开启「忽略电池优化」。
+  看门狗唤醒（约 9–15 分钟）或用户亮屏后补收。务必开启「忽略电池优化」。
 - **精确闹钟权限**：Android 12+ 的 `SCHEDULE_EXACT_ALARM` 需要用户手动授权；未授权时
   看门狗退化为 `setAndAllowWhileIdle`，仍能工作，但 Doze 下的唤醒时间不精确。
 - **划掉最近任务**：服务声明了 `stopWithTask=false`，并在 `onTaskRemoved` 里续拉前台服务 +

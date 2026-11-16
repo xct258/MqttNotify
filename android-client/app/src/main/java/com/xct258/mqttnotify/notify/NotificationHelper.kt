@@ -12,6 +12,7 @@ import com.xct258.mqttnotify.MainActivity
 import com.xct258.mqttnotify.R
 import com.xct258.mqttnotify.mqtt.MqttMessageParser
 import com.xct258.mqttnotify.mqtt.MqttState
+import com.xct258.mqttnotify.service.MqttForegroundService
 import com.xct258.mqttnotify.ui.markdownToPlainText
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -28,6 +29,7 @@ object NotificationHelper {
     const val CHANNEL_ALERTS = "mqtt_alerts"
 
     private const val GROUP_ALERTS = "com.xct258.mqttnotify.ALERTS"
+    private const val RECOVERY_NOTIFICATION_ID = 1002
 
     /** 提醒通知 ID 自增，避免新提醒覆盖旧提醒。 */
     private val alertId = AtomicInteger(2000)
@@ -120,6 +122,45 @@ object NotificationHelper {
         // Android 13+ 未授权时会抛 SecurityException，静默忽略（UI 已单独提示授权）。
         runCatching {
             NotificationManagerCompat.from(context).notify(alertId.incrementAndGet(), builder.build())
+        }
+    }
+
+    /**
+     * 系统拦截了后台启动前台服务时的兜底通知。
+     *
+     * 没有精确闹钟权限时，`startForegroundService()` 可能抛
+     * `ForegroundServiceStartNotAllowedException`；此时用户点一下通知属于
+     * “用户交互”，可以合法地把服务拉回来，比静默失败强。
+     */
+    fun notifyRecoveryNeeded(context: Context) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+
+        val restart = Intent(context, MqttForegroundService::class.java)
+            .setAction(MqttForegroundService.ACTION_START)
+        val pending = PendingIntent.getForegroundService(
+            context,
+            RECOVERY_NOTIFICATION_ID,
+            restart,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.recovery_title))
+            .setContentText(context.getString(R.string.recovery_text))
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(context.getString(R.string.recovery_text)),
+            )
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .build()
+
+        runCatching {
+            NotificationManagerCompat.from(context)
+                .notify(RECOVERY_NOTIFICATION_ID, notification)
         }
     }
 

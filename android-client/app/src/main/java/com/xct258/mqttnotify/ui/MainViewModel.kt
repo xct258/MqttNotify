@@ -29,4 +29,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun startReceiving() = MqttForegroundService.start(getApplication<Application>())
 
     fun stopReceiving() = MqttForegroundService.stop(getApplication<Application>())
+
+    fun reconnect() = MqttForegroundService.reconnect(getApplication<Application>())
 }

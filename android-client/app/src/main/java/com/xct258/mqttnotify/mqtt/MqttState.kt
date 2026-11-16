@@ -52,9 +52,22 @@ object MqttState {
     var lastActivityAt: Long = 0L
         private set
 
+    /** 本次进程生命周期内主动请求重连的次数，便于在诊断信息里观察自愈频率。 */
+    @Volatile
+    var reconnectCount: Int = 0
+        private set
+
     fun setStatus(status: Status, detail: String = "") {
         _status.value = Snapshot(status, detail, System.currentTimeMillis())
     }
+
+    fun noteReconnectRequested() {
+        reconnectCount++
+    }
+
+    /** 距离最近一次成功收发的毫秒数；从未有过活动时为 null。 */
+    fun activityAgeMs(now: Long = SystemClock.elapsedRealtime()): Long? =
+        if (lastActivityAt <= 0L) null else (now - lastActivityAt).coerceAtLeast(0L)
 
     /** 记录一次可证明链路仍然可用的收发（连接成功、收到消息、心跳成功）。 */
     fun markActivity() {
@@ -101,6 +114,6 @@ object MqttState {
         _alerts.value = emptyList()
     }
 
-    /** 心跳 60s 一次；连续 3 个周期没有成功收发就认为链路假死。 */
-    const val CONNECT_STALE_MS: Long = 180_000L
+    /** 心跳 60s 一次；连续 2 个周期没有成功收发就认为链路假死，尽快重连。 */
+    const val CONNECT_STALE_MS: Long = 120_000L
 }

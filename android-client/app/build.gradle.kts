@@ -68,6 +68,8 @@ android {
 
     buildFeatures {
         compose = true
+        // 看门狗的 debug 间隔开关需要 BuildConfig.DEBUG
+        buildConfig = true
     }
 
     testOptions {

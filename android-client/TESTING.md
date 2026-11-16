@@ -166,7 +166,7 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
 | 2 | 主题解析 | 发到 `taskops/todo/42` | 通知副标题是 topic，详情含 `#42` |
 | 3 | 断线重连 | 停掉 broker 30s 再启动 | 状态变「重连中」→「已连接」，之后推送正常收到（指数退避） |
 | 4 | 配置热更新 | 改 topic 后保存 | 服务自动重连，无需手动重启 |
-| 5 | 进程被杀 | `adb shell am kill <pkg>`（模拟系统回收，不要用 force-stop）后等 15 分钟再推 | 看门狗把服务拉起并重连，离线期间的消息补收 |
+| 5 | 进程被杀 | `adb shell am kill <pkg>`（模拟系统回收，不要用 force-stop）后等 9–15 分钟再推 | 看门狗把服务拉起并重连，离线期间的 QoS 1 消息补收 |
 | 6 | 开机自启 | 重启手机（开关已开） | 无需打开 App，通知栏即出现常驻通知 |
 | 7 | 权限 | 关掉通知权限 | 不崩溃；连接照常，只是不弹通知 |
 | 8 | 息屏/Doze | 息屏放置 10 分钟后再推 | 通知能到（务必开启忽略电池优化） |
@@ -179,8 +179,24 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
 | 15 | 在线状态 | 保持连接 5 分钟，观察 push 管理页「客户端」 | 始终显示在线，最后心跳不超过 60 秒；发一条消息后 last_seen 立即刷新 |
 | 16 | 重连后的在线状态 | 断开网络 30 秒再恢复，观察管理页 | 重连成功后 retained 状态恢复为 online=true，不会一直停在离线 |
 
-> 看门狗是 15 分钟一次，测试时可以临时把 `MqttWatchdog.INTERVAL_MS` 调小，
-> 或用 `adb shell dumpsys alarm | grep mqttnotify` 确认闹钟已注册。
+> 看门狗约 9–15 分钟一次（取决于精确闹钟权限），可用
+> `adb shell dumpsys alarm | grep mqttnotify` 确认闹钟已注册。
+> **debug 包**可以把间隔临时压缩到 1 分钟（release 不读取此设置）：
+> ```bash
+> adb shell settings put global mqttnotify_watchdog_ms 60000
+> # 测试完删除，恢复默认
+> adb shell settings delete global mqttnotify_watchdog_ms
+> ```
+> 模拟器上验证 Doze/白名单：
+> ```bash
+> adb shell dumpsys deviceidle whitelist +com.xct258.mqttnotify.debug
+> adb shell dumpsys deviceidle force-idle
+> adb shell dumpsys deviceidle unforce
+> ```
+> 验证离线补收时发布端必须用 QoS 1：
+> ```bash
+> mosquitto_pub -q 1 -h <host> -t 'taskops/todo/42' -m $'【待办提醒】离线测试\nQoS1'
+> ```
 > 强制停止（`am force-stop` / 系统设置里「强行停止」）会清除所有闹钟，任何应用都无法自恢复。
 
 包名：debug 是 `com.xct258.mqttnotify.debug`，release 是 `com.xct258.mqttnotify`。
@@ -200,8 +216,10 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
    实际订阅的是 `<主题>/#`。填成 `taskops/todo/7` 就收不到了。
 3. **Client ID 冲突**：两个客户端用同一个前缀会互相顶掉。最终 ID 是 `前缀_固定随机串`，留空前缀则自动使用 `android_xxxxxxxx`。
 4. **连不上 broker**：内网不通 / 端口不是 1883 / 手机与 broker 不同网段。
-5. **连上了收不到**：QoS 1 正常；确认消息是 `retained=false` 的实时推送，
-   离线期间的消息本来就**不会补发**（要靠 REST 补拉，首版未接入）。
+5. **连上了收不到**：先确认发布端用的是 **QoS 1**。Android 端用持久会话
+   （`cleanSession=false`），broker 会为离线期间的 QoS 1 消息排队并在重连后补发；
+   **QoS 0 不会排队**，用 `mosquitto_pub` 测试时务必加 `-q 1`。另外 broker 重启且未做
+   磁盘持久化时，内存里的离线队列会丢，需要 REST 补拉兜底（首版未接入）。
 6. **后台被杀 / 延迟**：MIUI/EMUI 等需手动允许自启动与后台运行；关闭电池优化。
 7. **管理页显示离线但手机能收消息**：先确认两边 client id 一致，再旁路观察心跳：
    ```bash
