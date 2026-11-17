@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
+import com.xct258.mqttnotify.data.PowerState
 
 /**
  * 「后台保活」相关的系统设置跳转。
@@ -28,6 +29,17 @@ object KeepAliveSettings {
 
     fun areNotificationsEnabled(context: Context): Boolean =
         NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /** 用户可见的省电模式/低功耗待机（Doze 是系统自动的，不在这里提示）。 */
+    fun isPowerRestricted(context: Context): Boolean =
+        PowerState.isUserVisibleRestriction(context)
+
+    fun openBatterySaverSettings(context: Context) {
+        val intent = Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure { openAppDetails(context) }
+    }
 
     fun openNotificationSettings(context: Context) {
         val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)

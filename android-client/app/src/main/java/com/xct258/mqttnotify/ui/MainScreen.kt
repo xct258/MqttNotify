@@ -103,12 +103,16 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     var notificationsEnabled by remember {
         mutableStateOf(KeepAliveSettings.areNotificationsEnabled(context))
     }
+    var powerRestricted by remember {
+        mutableStateOf(KeepAliveSettings.isPowerRestricted(context))
+    }
     var watchdogIntervalMin by remember { mutableStateOf(0L) }
     var watchdogNextMin by remember { mutableStateOf<Long?>(null) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         needsBatteryExemption = !isIgnoringBatteryOptimizations(context)
         exactAlarmGranted = KeepAliveSettings.canScheduleExactAlarms(context)
         notificationsEnabled = KeepAliveSettings.areNotificationsEnabled(context)
+        powerRestricted = KeepAliveSettings.isPowerRestricted(context)
         watchdogIntervalMin = MqttWatchdog.intervalMs(context) / 60_000L
         watchdogNextMin = MqttWatchdog.nextScheduledInMs(context)
             ?.let { (it + 59_999L) / 60_000L }
@@ -141,6 +145,7 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     if (KeepAliveSettings.supportsExactAlarms() && !exactAlarmGranted) {
         keepAliveIssues += stringResource(R.string.ui_exact_alarm)
     }
+    if (powerRestricted) keepAliveIssues += stringResource(R.string.ui_power_restriction)
     if (!notificationsEnabled) keepAliveIssues += stringResource(R.string.ui_notifications)
 
     Scaffold(
@@ -433,6 +438,16 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                             ),
                             actionEnabled = !exactAlarmGranted,
                             onClick = { KeepAliveSettings.requestExactAlarmPermission(context) },
+                        )
+                    }
+
+                    if (powerRestricted) {
+                        HorizontalDivider()
+                        KeepAliveRow(
+                            title = stringResource(R.string.ui_power_restriction),
+                            hint = stringResource(R.string.ui_power_restriction_hint),
+                            actionLabel = stringResource(R.string.ui_power_restriction_action),
+                            onClick = { KeepAliveSettings.openBatterySaverSettings(context) },
                         )
                     }
 
