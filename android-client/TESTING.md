@@ -178,8 +178,6 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
 | 14 | 精确闹钟 | Android 12+ 关闭精确闹钟权限 | 看门狗仍工作（退化为非精确）；授权后 Doze 唤醒更准时 |
 | 15 | 在线状态 | 保持连接 5 分钟，观察 push 管理页「客户端」 | 始终显示在线，最后心跳不超过 60 秒；发一条消息后 last_seen 立即刷新 |
 | 16 | 重连后的在线状态 | 断开网络 30 秒再恢复，观察管理页 | 重连成功后 retained 状态恢复为 online=true，不会一直停在离线 |
-| 17 | 省电模式退出 | 开启系统省电模式/超级省电，再关闭 | 日志出现“退出省电/低功耗模式”，数秒内恢复「已连接」，之后推送正常收到 |
-| 18 | 低功耗待机退出 | 开启 Low Power Standby / 超级省电后关闭并亮屏 | 即使收不到系统广播，15 秒内轮询发现并重连 |
 
 > 看门狗约 9–15 分钟一次（取决于精确闹钟权限），可用
 > `adb shell dumpsys alarm | grep mqttnotify` 确认闹钟已注册。
@@ -194,14 +192,6 @@ mosquitto_pub -h <host> -t 'taskops/todo/7' -q 1 \
 > adb shell dumpsys deviceidle whitelist +com.xct258.mqttnotify.debug
 > adb shell dumpsys deviceidle force-idle
 > adb shell dumpsys deviceidle unforce
-> ```
-> 模拟电池省电模式（插电时系统会自动关闭省电，先拔电/降电量）：
-> ```bash
-> adb shell cmd battery unplug -f
-> adb shell cmd battery set level 10 -f
-> adb shell cmd power set-mode 1   # 开启
-> adb shell cmd power set-mode 0   # 关闭，观察日志与重连
-> adb shell cmd battery reset -f
 > ```
 > 验证离线补收时发布端必须用 QoS 1：
 > ```bash

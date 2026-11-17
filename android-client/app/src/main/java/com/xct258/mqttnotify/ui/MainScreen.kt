@@ -103,16 +103,12 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     var notificationsEnabled by remember {
         mutableStateOf(KeepAliveSettings.areNotificationsEnabled(context))
     }
-    var powerRestricted by remember {
-        mutableStateOf(KeepAliveSettings.isPowerRestricted(context))
-    }
     var watchdogIntervalMin by remember { mutableStateOf(0L) }
     var watchdogNextMin by remember { mutableStateOf<Long?>(null) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         needsBatteryExemption = !isIgnoringBatteryOptimizations(context)
         exactAlarmGranted = KeepAliveSettings.canScheduleExactAlarms(context)
         notificationsEnabled = KeepAliveSettings.areNotificationsEnabled(context)
-        powerRestricted = KeepAliveSettings.isPowerRestricted(context)
         watchdogIntervalMin = MqttWatchdog.intervalMs(context) / 60_000L
         watchdogNextMin = MqttWatchdog.nextScheduledInMs(context)
             ?.let { (it + 59_999L) / 60_000L }
@@ -145,7 +141,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
     if (KeepAliveSettings.supportsExactAlarms() && !exactAlarmGranted) {
         keepAliveIssues += stringResource(R.string.ui_exact_alarm)
     }
-    if (powerRestricted) keepAliveIssues += stringResource(R.string.ui_power_restriction)
     if (!notificationsEnabled) keepAliveIssues += stringResource(R.string.ui_notifications)
 
     Scaffold(
@@ -214,12 +209,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         issues = keepAliveIssues,
                         onOpenSettings = { showSettings = true },
                     )
-                }
-            }
-
-            if (!showSettings && KeepAliveSettings.isHonor()) {
-                item {
-                    HonorKeepAliveCard(onOpenSettings = { showSettings = true })
                 }
             }
 
@@ -447,26 +436,6 @@ fun AppRoot(viewModel: MainViewModel = viewModel()) {
                         )
                     }
 
-                    if (powerRestricted) {
-                        HorizontalDivider()
-                        KeepAliveRow(
-                            title = stringResource(R.string.ui_power_restriction),
-                            hint = stringResource(R.string.ui_power_restriction_hint),
-                            actionLabel = stringResource(R.string.ui_power_restriction_action),
-                            onClick = { KeepAliveSettings.openBatterySaverSettings(context) },
-                        )
-                    }
-
-                    if (KeepAliveSettings.isHonor()) {
-                        HorizontalDivider()
-                        KeepAliveRow(
-                            title = stringResource(R.string.ui_honor_super_saving),
-                            hint = stringResource(R.string.ui_honor_super_saving_hint),
-                            actionLabel = stringResource(R.string.ui_honor_super_saving_action),
-                            onClick = { KeepAliveSettings.openHonorSuperSavingSettings(context) },
-                        )
-                    }
-
                     HorizontalDivider()
                     KeepAliveRow(
                         title = stringResource(R.string.ui_autostart),
@@ -572,37 +541,6 @@ private fun statusColor(status: MqttState.Status): Color = when (status) {
     MqttState.Status.FAILED -> MaterialTheme.colorScheme.error
     MqttState.Status.STOPPED -> MaterialTheme.colorScheme.onSurfaceVariant
     else -> MaterialTheme.colorScheme.tertiary
-}
-
-@Composable
-private fun HonorKeepAliveCard(onOpenSettings: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.ui_honor_card_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            Text(
-                text = stringResource(R.string.ui_honor_card_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-            OutlinedButton(onClick = onOpenSettings) {
-                Text(stringResource(R.string.ui_honor_card_action))
-            }
-        }
-    }
 }
 
 @Composable

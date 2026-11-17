@@ -26,7 +26,6 @@ import com.hivemq.client.mqtt.mqtt3.Mqtt3AsyncClient
 import com.hivemq.client.mqtt.mqtt3.message.publish.Mqtt3Publish
 import com.xct258.mqttnotify.R
 import com.xct258.mqttnotify.data.AppSettings
-import com.xct258.mqttnotify.data.PowerState
 import com.xct258.mqttnotify.data.SettingsRepository
 import com.xct258.mqttnotify.mqtt.AlertStore
 import com.xct258.mqttnotify.mqtt.InsecureSsl
@@ -121,11 +120,6 @@ class MqttForegroundService : Service() {
     @Volatile
     private var lastPresenceAt: Long = 0L
 
-    /** 上一次观察到的省电/Doze/后台数据限制状态，用于只在“退出限制”时重连一次。 */
-    @Volatile
-    private var lastPowerRestricted: Boolean = false
-    private val powerStateLock = Any()
-
     /**
      * 连接代号：每次拆连接 / 新建立都自增。
      * 监听回调只在代号仍然“当前”时才更新状态，避免旧连接的迟到回调污染 UI。
@@ -138,7 +132,6 @@ class MqttForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        lastPowerRestricted = PowerState.isRestricted(this)
         NotificationHelper.createChannels(this)
         startForegroundCompat(serviceNotification(MqttState.Status.STOPPED, ""))
         // 用户点了「启动接收」时 start() 已把开关置 true；这里只补排闹钟，
@@ -721,8 +714,8 @@ class MqttForegroundService : Service() {
     }
 
     /**
-     * 亮屏 / 解锁 / 退出省电模式时立刻补一次：休眠或限制期间错过的消息在重连后
-     * 马上弹出，不用等下一次 9–15 分钟看门狗。
+     * 用户解锁 / 亮屏时立刻补一次：休眠期间错过的消息在重连后马上弹出，
+     * 不用等下一次 9–15 分钟看门狗。
      */
     private fun registerWakeupReceiver() {
         val receiver = object : BroadcastReceiver() {
@@ -730,17 +723,17 @@ class MqttForegroundService : Service() {
                 when (intent.action) {
                     Intent.ACTION_USER_PRESENT,
                     Intent.ACTION_SCREEN_ON,
-                    -> handleWakeup()
-
-                    PowerManager.ACTION_POWER_SAVE_MODE_CHANGED,
-                    PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED,
-                    ConnectivityManager.ACTION_RESTRICT_BACKGROUND_CHANGED,
-                    -> handlePowerStateChanged(intent.action)
-
-                    ACTION_LIGHT_IDLE_MODE_CHANGED,
-                    ACTION_LOW_POWER_STANDBY_CHANGED,
-                    -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        handlePowerStateChanged(intent.action)
+                    -> {
+                        val status = MqttState.status.value.status
+                        if (status == MqttState.Status.CONNECTED) {
+                            if (!MqttState.isConnectionAlive()) {
+                                forceReconnect("亮屏/解锁：连接假死")
+                            } else {
+                                publishPresenceNow("亮屏/解锁")
+                            }
+                        } else {
+                            retrySignal.trySend(Unit)
+                        }
                     }
                 }
             }
@@ -749,13 +742,6 @@ class MqttForegroundService : Service() {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_USER_PRESENT)
             addAction(Intent.ACTION_SCREEN_ON)
-            addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
-            addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
-            addAction(ConnectivityManager.ACTION_RESTRICT_BACKGROUND_CHANGED)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                addAction(ACTION_LIGHT_IDLE_MODE_CHANGED)
-                addAction(ACTION_LOW_POWER_STANDBY_CHANGED)
-            }
         }
         runCatching {
             ContextCompat.registerReceiver(
@@ -766,45 +752,6 @@ class MqttForegroundService : Service() {
             )
         }.onSuccess { wakeupReceiver = receiver }
             .onFailure { Log.w(TAG, "注册亮屏/解锁监听失败", it) }
-    }
-
-    private fun handleWakeup() {
-        val status = MqttState.status.value.status
-        if (status == MqttState.Status.CONNECTED) {
-            if (!MqttState.isConnectionAlive()) {
-                forceReconnect("亮屏/解锁：连接假死")
-            } else {
-                publishPresenceNow("亮屏/解锁")
-            }
-        } else {
-            retrySignal.trySend(Unit)
-        }
-    }
-
-    /**
-     * 退出省电模式 / 低功耗待机 / Doze / 后台数据限制后，现有 socket 往往已经
-     * 被系统掐断，但 TCP 层未必立刻报错。这里强制重建连接，并强制补排一次
-     * 看门狗闹钟（这些模式可能把已有闹钟清掉）。
-     */
-    private fun handlePowerStateChanged(action: String?) {
-        val restricted = PowerState.isRestricted(this)
-        val justExited = notePowerRestricted(restricted)
-        Log.i(TAG, "电源/网络限制变化：$action，restricted=$restricted，justExited=$justExited")
-        if (!restricted && justExited) {
-            MqttWatchdog.schedule(this)
-            forceReconnect("退出省电/低功耗模式")
-        }
-    }
-
-    /**
-     * 更新限制状态，并返回是否刚刚从“受限”变成“不受限”。
-     * 广播和 15 秒轮询可能同时看到同一次状态变化，这里做一次去重，
-     * 避免连续触发两轮重连。
-     */
-    private fun notePowerRestricted(restricted: Boolean): Boolean = synchronized(powerStateLock) {
-        val previous = lastPowerRestricted
-        lastPowerRestricted = restricted
-        previous && !restricted
     }
 
     private fun unregisterWakeupReceiver() {
@@ -820,18 +767,8 @@ class MqttForegroundService : Service() {
      */
     private fun startLivenessWatchdog() {
         scope.launch {
-            // Low Power Standby 的广播只发给持有 MANAGE_LOW_POWER_STANDBY 的系统应用，
-            // 普通 App 收不到；这里每 15 秒轮询一次，保证退出超级省电/低功耗待机后
-            // 即使没有广播也能立刻发现并重连。
             while (isActive) {
                 delay(LIVENESS_CHECK_MS)
-                val restricted = PowerState.isRestricted(this@MqttForegroundService)
-                if (notePowerRestricted(restricted)) {
-                    Log.i(TAG, "轮询检测到退出省电/低功耗模式，主动重连")
-                    MqttWatchdog.schedule(this@MqttForegroundService)
-                    forceReconnect("退出省电/低功耗模式")
-                }
-
                 val snapshot = MqttState.status.value
                 if (snapshot.status == MqttState.Status.CONNECTED &&
                     !MqttState.isConnectionAlive()
@@ -890,10 +827,6 @@ class MqttForegroundService : Service() {
     companion object {
         private const val TAG = "MqttService"
         private const val NOTIFICATION_ID = 1001
-        private const val ACTION_LIGHT_IDLE_MODE_CHANGED =
-            "android.os.action.LIGHT_DEVICE_IDLE_MODE_CHANGED"
-        private const val ACTION_LOW_POWER_STANDBY_CHANGED =
-            "android.os.action.LOW_POWER_STANDBY_ENABLED_CHANGED"
         // Broker 在 1.5×KeepAlive 后才判定旧连接死亡；60s 会让断网瞬间的
         // “僵尸连接”窗口长达 90s，期间发布的消息可能发到已失效的 socket。
         // 30s 把窗口压到 45s，同时 PINGREQ 仍然很轻量。

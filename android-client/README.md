@@ -123,7 +123,6 @@ location /mqtt {
   - 连续 2 次心跳失败 / 连接假死（2 分钟无成功收发）主动重连；
   - `AlarmManager` 看门狗约 9–15 分钟自检（取决于精确闹钟权限），进程被杀后自动拉起服务；
   - 持久会话（`cleanSession=false`），离线期间的 QoS1 消息由 broker 排队补发；
-  - 退出系统省电模式 / 低功耗待机 / Doze / 后台数据限制后，自动重建连接并补排看门狗；
   - 建连阶段短暂持有 WakeLock，避免设备刚被闹钟唤醒又睡回去。
 - ✅ 系统通知：高优先级「待办提醒」渠道 + 低优先级「连接状态」常驻渠道（Android 13+ 会请求通知权限）
 - ✅ 设置页：传输方式（TCP / WS / WSS） / Broker 地址 / 端口 / WebSocket 路径 / 订阅主题 base / 服务器名称 / Client ID / 开机自启，DataStore 持久化
@@ -271,7 +270,7 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 
 ## 6. 关键实现说明
 
-### 6.1 后台及时收信的八道防线
+### 6.1 后台及时收信的七道防线
 
 | 防线 | 触发条件 | 行为 |
 | --- | --- | --- |
@@ -282,7 +281,6 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 | 5. 看门狗 | 精确闹钟：9 分钟起（Doze 下可能延后）；无权限：约 15 分钟 | 进程被杀则拉起服务；连接假死/卡住则踢一脚 |
 | 6. 系统白名单 | 用户授权 | 忽略电池优化（Doze 联网）、精确闹钟、厂商自启动 |
 | 7. 失败兜底 | 系统拦截后台启动 FGS | 发一条可点击的“恢复连接”通知，用户点一下即可拉回 |
-| 8. 省电模式退出 | 省电模式/低功耗待机/Doze/后台数据限制结束 | 运行时广播 + 15 秒轮询检测，强制重连并重排看门狗 |
 
 - **保活**：前台服务 + 常驻通知。Android 14+ 声明 `foregroundServiceType="specialUse"`
   （长连接消息接收不属于 `dataSync`，且 `dataSync` 在 Android 15 有 6h/24h 限制）。
@@ -295,11 +293,6 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 - **网络切换**：`ConnectivityManager.NetworkCallback.onAvailable` 在网络切换后 3 秒内主动
   重连一次；`onLost` 等 5 秒宽限期，确认没有新网络后立即重连，避免 Wi-Fi→移动数据的
   交接瞬间误判。
-- **省电模式/低功耗待机**：服务内监听 `POWER_SAVE_MODE_CHANGED`、`DEVICE_IDLE_MODE_CHANGED`、
-  `RESTRICT_BACKGROUND_CHANGED` 等系统广播；退出限制时立即 `forceReconnect` 并强制重排
-  看门狗。Android 13+ 的 Low Power Standby 广播只发给持有 `MANAGE_LOW_POWER_STANDBY`
-  的系统应用，普通 App 收不到，因此另外每 15 秒轮询一次 `PowerState`，保证退出后最多
-  15 秒内发现并重连。主界面也会在省电模式开启时显示保活提示。
 - **在线状态**：`$presence/clients/{client_id}` 全部用 QoS1 + retained 发布：
   - 上线、每 60 秒心跳、收到消息、MQTT 重连成功、亮屏/解锁都会刷新；
   - 收到消息触发的刷新做了 20 秒合并，补收大量消息时不会刷屏；
@@ -344,16 +337,6 @@ mosquitto_sub --url 'ws://<broker-host>:9001/mqtt' -t 'taskops/todo/#' -v
 
 - **Doze / 电池优化**：没有加入白名单时，系统深度休眠会暂停应用联网，消息只能等下一次
   看门狗唤醒（约 9–15 分钟）或用户亮屏后补收。务必开启「忽略电池优化」。
-- **超级省电 / 低功耗待机**：开启期间系统可能暂停后台联网、限制前台服务和唤醒；退出后
-  App 会通过运行时广播/15 秒轮询自动重连。**如果系统在开启期间把 App 强行停止**，广播、
-  闹钟和任务都会被清除，任何第三方 App 都无法自恢复，只能重新打开 App 或重启设备。
-- **荣耀 MagicOS 超级省电**：需要在「设置 → 电池 → 电池使用模式 → 超级省电 →
-  添加常用应用」中把本应用加入白名单；同时把「应用启动管理」改为手动，勾选允许自启动、
-  关联启动、后台活动；电池优化设为「不允许」；多任务卡片下拉加锁。设置页已提供荣耀
-  专用入口（`com.hihonor.systemmanager` 的启动管理/超级省电白名单页面）。
-  Clash Meta 等代理应用能常驻，很大程度是因为它们使用 `VpnService` 并启用了系统
-  「始终开启的 VPN」；普通 MQTT 客户端无法获得同等系统优先级。
-
 - **精确闹钟权限**：Android 12+ 的 `SCHEDULE_EXACT_ALARM` 需要用户手动授权；未授权时
   看门狗退化为 `setAndAllowWhileIdle`，仍能工作，但 Doze 下的唤醒时间不精确。
 - **划掉最近任务**：服务声明了 `stopWithTask=false`，并在 `onTaskRemoved` 里续拉前台服务 +
