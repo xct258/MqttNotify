@@ -49,6 +49,12 @@
     <string name="ui_power_restriction">系统省电模式 / 低功耗待机</string>
     <string name="ui_power_restriction_hint">开启时系统可能暂停后台联网和长连接；退出后 App 会自动重连。超级省电/低功耗待机需在系统设置里关闭。</string>
     <string name="ui_power_restriction_action">去设置</string>
+    <string name="ui_honor_super_saving">荣耀超级省电白名单</string>
+    <string name="ui_honor_super_saving_hint">设置 → 电池 → 电池使用模式 → 超级省电 → 添加常用应用，把本应用加入；再在“应用启动管理”里关闭自动管理，勾选允许自启动/关联启动/后台活动，并在多任务卡片下拉加锁。</string>
+    <string name="ui_honor_super_saving_action">去设置</string>
+    <string name="ui_honor_card_title">荣耀保活设置</string>
+    <string name="ui_honor_card_body">超级省电会冻结非白名单应用。请把本应用加入“超级省电 → 添加常用应用”，在“应用启动管理”里允许自启动/关联启动/后台活动，并在多任务卡片下拉加锁。</string>
+    <string name="ui_honor_card_action">查看设置</string>
     <string name="ui_notifications">通知权限</string>
     <string name="ui_notifications_hint">未授权时连接正常，但收到消息不会弹出提醒</string>
     <string name="ui_notifications_action">去授权</string>
